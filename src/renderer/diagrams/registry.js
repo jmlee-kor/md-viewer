@@ -30,6 +30,8 @@ async function hydrateOne(el) {
 
   try {
     const result = await fn(src, el);
+    // fn 이 undefined 를 반환하면 el 을 직접 채운 것 → 건드리지 않음 (예: drawio)
+    if (result === undefined || result === null) return;
     el.replaceChildren();
     if (typeof result === 'string') el.innerHTML = result;
     else if (result instanceof Node) el.appendChild(result);
