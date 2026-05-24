@@ -172,6 +172,7 @@ app.whenReady().then(async () => {
       const appActionApi = typeof window.mdv.appAction === 'function';
       const actionBtnCount = appEl.shadowRoot.querySelectorAll('.menu [data-action]').length;
       const menuActionsOk = appActionApi && actionBtnCount >= 5; // 보기 액션 6개 (창 액션은 타이틀바로 이동)
+      const autoOpenOk = !!appEl.shadowRoot.querySelector('.menu [data-autoopen]');
 
       // md 원본(raw) 보기: 상태 주입 → 라인번호 pre, 렌더 아님
       appEl._src = '# 제목\\n본문줄';
@@ -265,6 +266,7 @@ app.whenReady().then(async () => {
         menuOk,
         menuActionsOk,
         actionBtnCount,
+        autoOpenOk,
         rawOk,
         recentOk,
         titlebarOk,
@@ -310,6 +312,7 @@ app.whenReady().then(async () => {
     if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
     if (!result.menuOk) fail('플로팅 메뉴 토글/패널 실패');
     if (!result.menuActionsOk) fail(`창/보기 액션 메뉴 실패 (appAction API/버튼수=${result.actionBtnCount})`);
+    if (!result.autoOpenOk) fail('시작 시 자동열기 토글 체크박스 없음');
     if (!result.rawOk) fail('md 원본(raw) 보기 렌더 실패');
     if (!result.recentOk) fail('최근 vault 리스트 실패');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

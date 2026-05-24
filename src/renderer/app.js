@@ -179,6 +179,10 @@ class MdvApp extends LitElement {
       color: var(--muted, #9aa0a6);
       font-size: 0.78rem;
     }
+    .menu-panel label.checkrow {
+      justify-content: flex-start;
+      cursor: pointer;
+    }
     .menu-sep {
       height: 1px;
       background: #3a3d41;
@@ -555,6 +559,26 @@ class MdvApp extends LitElement {
     window.removeEventListener('blur', this._onBlur);
   }
 
+  firstUpdated() {
+    // 시작 시 최근 vault 자동 로딩 (설정 on + 목록 있을 때)
+    const last = this._recent[0];
+    if (last && getSetting('autoOpenRecent', true)) this._autoOpen(last);
+  }
+
+  async _autoOpen(root) {
+    try {
+      const res = await window.mdv.openVaultPath(root);
+      this._applyVault(res, false);
+      this._addRecent(res.root);
+    } catch {
+      this._removeRecent(root); // 경로 사라짐 → 조용히 목록에서 제거 (시작 시 에러 표시 안 함)
+    }
+  }
+
+  _onAutoOpenToggle(e) {
+    setSetting('autoOpenRecent', e.target.checked);
+  }
+
   _applyVault(data, keepSelection) {
     this._root = data.root;
     this._tree = data.tree;
@@ -852,6 +876,15 @@ ${lines.map(
                 )}
               </div>`
             : ''}
+          <label class="checkrow">
+            <input
+              type="checkbox"
+              data-autoopen
+              ?checked=${getSetting('autoOpenRecent', true)}
+              @change=${this._onAutoOpenToggle}
+            />
+            시작 시 최근 vault 열기
+          </label>
           <label
             >mermaid 테마
             <select @change=${this._onMermaidTheme}>
