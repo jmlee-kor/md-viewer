@@ -778,6 +778,17 @@ class MdvApp extends LitElement {
     .note .hljs-deletion {
       color: #ffdcd7;
     }
+    /* 수식 (KaTeX) */
+    .note .mdv-math-block {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0.3rem 0;
+      text-align: center;
+    }
+    .note .mdv-math-error {
+      color: #f48771;
+      background: rgba(244, 135, 113, 0.12);
+    }
     .note blockquote {
       border-left: 3px solid var(--accent, #569cd6);
       margin: 0;
@@ -1677,6 +1688,7 @@ ${lines.map(
 
   render() {
     return html`
+      <link rel="stylesheet" href="../../vendor/katex/katex.min.css" />
       ${this._renderTitlebar()}
       <div class="body" style="grid-template-columns: ${this._sidebarWidth}px 6px 1fr">
         <aside class="sidebar">

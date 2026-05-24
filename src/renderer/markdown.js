@@ -4,6 +4,7 @@
 import MarkdownIt from '../../vendor/markdown-it.js';
 import DOMPurify from '../../vendor/dompurify.js';
 import hljs from '../../vendor/highlight.js';
+import katex from '../../vendor/katex.js';
 
 // 코드블록 syntax highlight. lang 인식되면 hljs 토큰 span, 아니면 기본 이스케이프.
 // 다이어그램 fence 는 diagramFencePlugin 이 먼저 가로채므로 여기 안 옴.
@@ -202,6 +203,65 @@ function calloutPlugin(md) {
   });
 }
 
+// 수식: 인라인 $...$ + 블록 $$...$$ → KaTeX. renderToString 동기 → 즉시 HTML.
+function katexRender(tex, display) {
+  try {
+    return katex.renderToString(tex, { throwOnError: false, displayMode: display });
+  } catch (e) {
+    return `<code class="mdv-math-error" title="${md.utils.escapeHtml((e && e.message) || '')}">${md.utils.escapeHtml(tex)}</code>`;
+  }
+}
+function mathPlugin(md) {
+  // 인라인 $...$ (escape 룰 다음). 빈/공백시작 제외, \$ 이스케이프 존중.
+  md.inline.ruler.after('escape', 'math_inline', (state, silent) => {
+    if (state.src.charCodeAt(state.pos) !== 0x24 /* $ */) return false;
+    const start = state.pos + 1;
+    if (state.src.charCodeAt(start) === 0x24) return false; // $$ → 블록
+    let end = -1;
+    for (let i = start; i < state.posMax; i++) {
+      const c = state.src.charCodeAt(i);
+      if (c === 0x5c /* \ */) { i++; continue; }
+      if (c === 0x24) { end = i; break; }
+    }
+    if (end < 0) return false;
+    const content = state.src.slice(start, end);
+    if (!content.trim()) return false;
+    if (!silent) {
+      const tok = state.push('math_inline', '', 0);
+      tok.content = content;
+    }
+    state.pos = end + 1;
+    return true;
+  });
+  // 블록 $$...$$ (한 줄 또는 여러 줄)
+  md.block.ruler.before('fence', 'math_block', (state, startLine, endLine, silent) => {
+    const begin = state.bMarks[startLine] + state.tShift[startLine];
+    if (state.src.slice(begin, begin + 2) !== '$$') return false;
+    const startText = state.src.slice(begin, state.eMarks[startLine]).trim();
+    let endLineIdx = -1;
+    if (startText.length > 2 && startText.endsWith('$$')) {
+      endLineIdx = startLine; // 한 줄 $$..$$
+    } else {
+      for (let l = startLine + 1; l < endLine; l++) {
+        const t = state.src.slice(state.bMarks[l] + state.tShift[l], state.eMarks[l]).trim();
+        if (t.endsWith('$$')) { endLineIdx = l; break; }
+      }
+    }
+    if (endLineIdx < 0) return false;
+    if (silent) return true;
+    const raw = state.getLines(startLine, endLineIdx + 1, 0, false);
+    const tok = state.push('math_block', '', 0);
+    tok.block = true;
+    tok.content = raw.replace(/^\s*\$\$/, '').replace(/\$\$\s*$/, '');
+    tok.map = [startLine, endLineIdx + 1];
+    state.line = endLineIdx + 1;
+    return true;
+  });
+  md.renderer.rules.math_inline = (tokens, idx) => katexRender(tokens[idx].content, false);
+  md.renderer.rules.math_block = (tokens, idx) =>
+    `<div class="mdv-math-block">${katexRender(tokens[idx].content, true)}</div>\n`;
+}
+
 // 이미지 src 가 vault 상대경로면 mdv-res:// 로 치환 (노트 위치 기준).
 function imageRewritePlugin(md) {
   const defaultRender =
@@ -255,6 +315,7 @@ const md = new MarkdownIt({
   .use(wikilinkPlugin)
   .use(diagramFencePlugin)
   .use(calloutPlugin)
+  .use(mathPlugin)
   .use(imageRewritePlugin)
   .use(taskListPlugin);
 

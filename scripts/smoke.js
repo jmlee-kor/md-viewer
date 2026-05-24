@@ -90,6 +90,11 @@ app.whenReady().then(async () => {
       const hl = window.__mdvTest.renderMarkdown('~~~js\\nconst x = 1;\\n~~~');
       const highlightOk = /class="hljs"/.test(hl) && /hljs-keyword/.test(hl);
 
+      // 수식 (KaTeX) — 인라인 $...$ + 블록 $$...$$ (백슬래시 회피 위해 단순식)
+      const mi = window.__mdvTest.renderMarkdown('등가 $E=mc^2$ 식');
+      const mb = window.__mdvTest.renderMarkdown('$$a^2 + b^2 = c^2$$');
+      const mathOk = /class="katex"/.test(mi) && /mdv-math-block/.test(mb) && /katex/.test(mb);
+
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
       // Mermaid: ~~~ fence(백틱 회피) → placeholder → hydrate → svg
@@ -557,6 +562,7 @@ app.whenReady().then(async () => {
         plantumlDotErr,
         calloutOk,
         highlightOk,
+        mathOk,
         marpDetected,
         notMarp,
         marpSectionCount,
@@ -637,6 +643,7 @@ app.whenReady().then(async () => {
     if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
     if (!result.calloutOk) fail('콜아웃(> [!type]) 렌더 실패');
     if (!result.highlightOk) fail('코드 syntax highlight 실패 (hljs 토큰)');
+    if (!result.mathOk) fail('수식(KaTeX) 렌더 실패');
     if (!result.menuOk) fail('플로팅 메뉴 토글/패널 실패');
     if (!result.menuActionsOk) fail(`창/보기 액션 메뉴 실패 (appAction API/버튼수=${result.actionBtnCount})`);
     if (!result.autoOpenOk) fail('시작 시 자동열기 토글 체크박스 없음');
