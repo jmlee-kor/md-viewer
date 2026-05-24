@@ -515,6 +515,16 @@ class MdvApp extends LitElement {
       font-size: 0.85rem;
       margin-bottom: 0.4rem;
     }
+    .note .mdv-diagram-loading {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.85rem;
+      padding: 1rem;
+      animation: mdv-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes mdv-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
     /* 위키링크 */
     .note a.wikilink {
       text-decoration: none;

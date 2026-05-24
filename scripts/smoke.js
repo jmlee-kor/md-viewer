@@ -206,6 +206,17 @@ app.whenReady().then(async () => {
       const exportBtns = deckEl.shadowRoot.querySelectorAll('[data-export]').length;
       const marpExportOk = typeof window.mdv.exportMarp === 'function' && exportBtns === 2;
 
+      // 다이어그램 메모이즈: 같은 소스 두 번째 hydrate 는 캐시 히트로 svg 즉시
+      const mk1 = document.createElement('div');
+      mk1.innerHTML = window.__mdvTest.renderMarkdown('~~~mermaid\\ngraph TD\\n  X-->Y\\n~~~');
+      document.body.appendChild(mk1);
+      await window.__mdvTest.hydrateDiagrams(mk1);
+      const mk2 = document.createElement('div');
+      mk2.innerHTML = window.__mdvTest.renderMarkdown('~~~mermaid\\ngraph TD\\n  X-->Y\\n~~~');
+      document.body.appendChild(mk2);
+      await window.__mdvTest.hydrateDiagrams(mk2); // 캐시 히트 경로
+      const memoizeOk = !!mk1.querySelector('.mdv-diagram svg') && !!mk2.querySelector('.mdv-diagram svg');
+
       // [버그] 원본↔렌더 토글 후 다이어그램 재hydrate: mermaid 노트 → 렌더→원본→렌더
       appEl._marpSrc = null;
       appEl._selected = 'd.md';
@@ -273,6 +284,7 @@ app.whenReady().then(async () => {
         marpExportOk,
         reHydrateOk,
         viewBarOk,
+        memoizeOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -319,6 +331,7 @@ app.whenReady().then(async () => {
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
+    if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');
   } catch (e) {
     fail(String(e));
   }
