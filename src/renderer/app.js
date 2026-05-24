@@ -1,7 +1,7 @@
 // 앱 셸: 툴바(vault 열기) + 사이드바(트리) + 노트 뷰 + 백링크 패널.
 // 위키링크 클릭 이동 + 파일 변경 라이브 갱신.
 
-import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
+import { LitElement, html, svg, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
 import { renderMarkdown, makeResolver, toResUrl } from './markdown.js';
 import { hydrateDiagrams, registerDiagram } from './diagrams/index.js';
@@ -42,6 +42,7 @@ class MdvApp extends LitElement {
     _toc: { state: true },
     _tagFilter: { state: true },
     _histIdx: { state: true },
+    _graphOpen: { state: true },
   };
 
   static styles = [
@@ -665,6 +666,49 @@ class MdvApp extends LitElement {
     .lb-content svg {
       display: block;
     }
+    /* 그래프 뷰 */
+    .graph-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+    }
+    .graph-info {
+      margin-right: auto;
+      color: var(--muted, #9aa0a6);
+      font-size: 0.82rem;
+      padding-left: 0.3rem;
+    }
+    .graph-svg {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+    }
+    .graph-svg .g-edge {
+      stroke: #555;
+      stroke-width: 1;
+    }
+    .graph-svg .g-node {
+      cursor: pointer;
+    }
+    .graph-svg .g-node circle {
+      fill: var(--accent, #569cd6);
+      opacity: 0.85;
+    }
+    .graph-svg .g-node:hover circle {
+      fill: #7cc0f5;
+    }
+    .graph-svg .g-node.cur circle {
+      fill: #d8a657;
+    }
+    .graph-svg .g-node text {
+      fill: #c8ccd0;
+      font-size: 11px;
+      text-anchor: middle;
+      pointer-events: none;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -1040,6 +1084,8 @@ class MdvApp extends LitElement {
     this._pendingScroll = null;
     this._history = []; // 방문 노트 relPath 스택 (뒤로/앞으로)
     this._histIdx = -1;
+    this._graphOpen = false; // 링크 그래프 뷰
+    this._graph = null;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1067,6 +1113,9 @@ class MdvApp extends LitElement {
       } else if (e.key === 'Escape' && this._lightboxOpen) {
         e.preventDefault();
         this._closeLightbox();
+      } else if (e.key === 'Escape' && this._graphOpen) {
+        e.preventDefault();
+        this._closeGraph();
       } else if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         this._goBack();
@@ -1497,6 +1546,116 @@ class MdvApp extends LitElement {
       this._histIdx += 1;
       this._onSelect(this._history[this._histIdx], null, null, true);
     }
+  }
+
+  // --- 그래프 뷰 (노트 링크 시각화) ---
+  _openGraph() {
+    this._menuOpen = false;
+    const ids = this._allFiles().map((f) => f.relPath);
+    const idSet = new Set(ids);
+    const edges = [];
+    const seen = new Set();
+    const bl = this._index?.backlinks || {};
+    for (const dest of Object.keys(bl)) {
+      if (!idSet.has(dest)) continue;
+      for (const { from } of bl[dest]) {
+        if (!idSet.has(from)) continue;
+        const key = from + '\n' + dest;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({ s: from, t: dest });
+      }
+    }
+    const deg = {};
+    for (const e of edges) {
+      deg[e.s] = (deg[e.s] || 0) + 1;
+      deg[e.t] = (deg[e.t] || 0) + 1;
+    }
+    const pos = this._layoutGraph(ids, edges, 1000, 700);
+    this._graph = { ids, edges, pos, deg };
+    this._graphOpen = true;
+  }
+
+  _closeGraph() {
+    this._graphOpen = false;
+  }
+
+  /** 경량 force-directed 레이아웃 (정적 계산, 애니메이션 없음). */
+  _layoutGraph(ids, edges, W, H) {
+    const n = ids.length;
+    const pos = {};
+    ids.forEach((id, i) => {
+      const a = (i / Math.max(1, n)) * Math.PI * 2;
+      pos[id] = {
+        x: W / 2 + Math.cos(a) * Math.min(W, H) * 0.32 + (Math.random() - 0.5) * 20,
+        y: H / 2 + Math.sin(a) * Math.min(W, H) * 0.32 + (Math.random() - 0.5) * 20,
+        vx: 0, vy: 0,
+      };
+    });
+    const k = Math.sqrt((W * H) / Math.max(1, n));
+    const iters = Math.min(300, 120 + n * 4);
+    for (let it = 0; it < iters; it++) {
+      for (let i = 0; i < n; i++)
+        for (let j = i + 1; j < n; j++) {
+          const A = pos[ids[i]], B = pos[ids[j]];
+          let dx = A.x - B.x, dy = A.y - B.y;
+          const d = Math.hypot(dx, dy) || 0.01;
+          const rep = ((k * k) / d) * 0.02;
+          dx /= d; dy /= d;
+          A.vx += dx * rep; A.vy += dy * rep;
+          B.vx -= dx * rep; B.vy -= dy * rep;
+        }
+      for (const e of edges) {
+        const A = pos[e.s], B = pos[e.t];
+        if (!A || !B) continue;
+        let dx = A.x - B.x, dy = A.y - B.y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        const att = ((d * d) / k) * 0.005;
+        dx /= d; dy /= d;
+        A.vx -= dx * att; A.vy -= dy * att;
+        B.vx += dx * att; B.vy += dy * att;
+      }
+      for (const id of ids) {
+        const p = pos[id];
+        p.vx += (W / 2 - p.x) * 0.002;
+        p.vy += (H / 2 - p.y) * 0.002;
+        p.x += Math.max(-12, Math.min(12, p.vx));
+        p.y += Math.max(-12, Math.min(12, p.vy));
+        p.vx *= 0.85; p.vy *= 0.85;
+        p.x = Math.max(24, Math.min(W - 24, p.x));
+        p.y = Math.max(24, Math.min(H - 24, p.y));
+      }
+    }
+    return pos;
+  }
+
+  _renderGraph() {
+    const W = 1000, H = 700;
+    const g = this._graph || { ids: [], edges: [], pos: {}, deg: {} };
+    return html`
+      <div class="graph-overlay" @click=${this._closeGraph}>
+        <div class="lb-bar" @click=${(e) => e.stopPropagation()}>
+          <span class="graph-info">${g.ids.length}개 노트 · ${g.edges.length}개 링크</span>
+          <button title="닫기 (Esc)" @click=${this._closeGraph}>✕</button>
+        </div>
+        <svg class="graph-svg" viewBox="0 0 ${W} ${H}" @click=${(e) => e.stopPropagation()}>
+          ${g.edges.map((e) => {
+            const a = g.pos[e.s], b = g.pos[e.t];
+            return a && b ? svg`<line x1=${a.x} y1=${a.y} x2=${b.x} y2=${b.y} class="g-edge" />` : '';
+          })}
+          ${g.ids.map((id) => {
+            const p = g.pos[id];
+            if (!p) return '';
+            const r = 4 + Math.min(9, g.deg[id] || 0);
+            return svg`<g class="g-node ${id === this._selected ? 'cur' : ''}"
+              @click=${() => { this._closeGraph(); this._onSelect(id); }}>
+              <circle cx=${p.x} cy=${p.y} r=${r} />
+              <text x=${p.x} y=${p.y - r - 4}>${this._titleOf(id)}</text>
+            </g>`;
+          })}
+        </svg>
+      </div>
+    `;
   }
 
   _normHeading(s) {
@@ -1936,6 +2095,7 @@ ${lines.map(
       ${this._renderMenu()}
       ${this._paletteOpen ? this._renderPalette() : ''}
       ${this._lightboxOpen ? this._renderLightbox() : ''}
+      ${this._graphOpen ? this._renderGraph() : ''}
     `;
   }
 
@@ -2119,6 +2279,7 @@ ${lines.map(
               )}
             </select>
           </label>
+          <button data-graph @click=${this._openGraph} ?disabled=${!this._tree.length}>그래프 뷰</button>
           <div class="menu-sep"></div>
           <div class="menu-label">테마 · 글자크기</div>
           <div class="menu-actions" role="group" aria-label="테마">

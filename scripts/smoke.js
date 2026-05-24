@@ -457,6 +457,19 @@ app.whenReady().then(async () => {
       appEl._selected = null;
       await appEl.updateComplete;
 
+      // 그래프 뷰: 노드(노트)+엣지(링크) SVG 렌더 + 닫기
+      const gvd = await window.mdv.openVaultPath(${JSON.stringify(SAMPLE_VAULT)});
+      appEl._index = gvd.index;
+      appEl._tree = gvd.tree;
+      appEl._openGraph();
+      await appEl.updateComplete;
+      const gNodes = appEl.shadowRoot.querySelectorAll('.graph-svg .g-node').length;
+      const gEdges = appEl.shadowRoot.querySelectorAll('.graph-svg .g-edge').length;
+      const graphRendered = !!appEl.shadowRoot.querySelector('.graph-svg') && gNodes >= 3 && gEdges >= 1;
+      appEl._closeGraph();
+      await appEl.updateComplete;
+      const graphOk = graphRendered && !appEl.shadowRoot.querySelector('.graph-overlay');
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -671,6 +684,7 @@ app.whenReady().then(async () => {
         themeOk,
         scrollMemOk,
         historyOk,
+        graphOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -747,6 +761,7 @@ app.whenReady().then(async () => {
     if (!result.themeOk) fail('테마 토글/폰트 배율 실패');
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
+    if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
