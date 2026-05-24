@@ -470,6 +470,20 @@ app.whenReady().then(async () => {
       await appEl.updateComplete;
       const graphOk = graphRendered && !appEl.shadowRoot.querySelector('.graph-overlay');
 
+      // 링크 hover 미리보기: _showPreview 가 대상 노트 미리보기 생성
+      const fakeA = document.createElement('a');
+      fakeA.className = 'wikilink';
+      fakeA.setAttribute('data-target', 'Welcome.md');
+      appEl._hoverAnchor = fakeA;
+      await appEl._showPreview(fakeA);
+      await appEl.updateComplete;
+      const hoverOk = !!appEl._hoverPreview
+        && appEl._hoverPreview.title === 'Welcome'
+        && /<h1|환영|데모/.test(appEl._hoverPreview.html)
+        && !!appEl.shadowRoot.querySelector('.hover-preview');
+      appEl._hidePreview();
+      await appEl.updateComplete;
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -685,6 +699,7 @@ app.whenReady().then(async () => {
         scrollMemOk,
         historyOk,
         graphOk,
+        hoverOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -762,6 +777,7 @@ app.whenReady().then(async () => {
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
+    if (!result.hoverOk) fail('링크 hover 미리보기 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

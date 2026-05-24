@@ -43,6 +43,7 @@ class MdvApp extends LitElement {
     _tagFilter: { state: true },
     _histIdx: { state: true },
     _graphOpen: { state: true },
+    _hoverPreview: { state: true },
   };
 
   static styles = [
@@ -709,6 +710,34 @@ class MdvApp extends LitElement {
       text-anchor: middle;
       pointer-events: none;
     }
+    /* 링크 hover 미리보기 */
+    .hover-preview {
+      position: fixed;
+      z-index: 120;
+      width: 360px;
+      max-height: 260px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel, #232323);
+      border: 1px solid var(--border, #3a3d41);
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    }
+    .hp-title {
+      flex: 0 0 auto;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted, #9aa0a6);
+      padding: 0.4rem 0.7rem;
+      border-bottom: 1px solid var(--border, #333);
+    }
+    .hover-preview .hp-body {
+      overflow: auto;
+      padding: 0.4rem 0.9rem;
+      max-width: none;
+      font-size: 0.82rem;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -1086,6 +1115,11 @@ class MdvApp extends LitElement {
     this._histIdx = -1;
     this._graphOpen = false; // 링크 그래프 뷰
     this._graph = null;
+    this._hoverPreview = null; // 링크 hover 미리보기 카드
+    this._hoverAnchor = null;
+    this._hoverTimer = null;
+    this._hideTimer = null;
+    this._previewCache = new Map();
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1917,6 +1951,60 @@ class MdvApp extends LitElement {
     this._tagFilter = tag || null;
   }
 
+  // --- 링크 hover 미리보기 ---
+  _onNoteOver(e) {
+    const a = e.target.closest?.('a.wikilink[data-target]');
+    if (!a || !a.getAttribute('data-target') || a === this._hoverAnchor) return;
+    this._hoverAnchor = a;
+    clearTimeout(this._hoverTimer);
+    clearTimeout(this._hideTimer);
+    this._hoverTimer = setTimeout(() => this._showPreview(a), 400);
+  }
+
+  _onNoteOut(e) {
+    const a = e.target.closest?.('a.wikilink');
+    if (a && a === this._hoverAnchor) {
+      this._hoverAnchor = null;
+      clearTimeout(this._hoverTimer);
+      this._hideTimer = setTimeout(() => (this._hoverPreview = null), 180); // 카드로 이동 여유
+    }
+  }
+
+  async _showPreview(a) {
+    const rel = a.getAttribute('data-target');
+    let html = this._previewCache.get(rel);
+    if (html == null) {
+      try {
+        const src = await window.mdv.readNote(rel);
+        const body = src.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').slice(0, 1500);
+        const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+        html = renderMarkdown(body, { resolveWikiLink: this._resolver, noteDir: dir });
+      } catch {
+        html = '<em>미리보기 실패</em>';
+      }
+      this._previewCache.set(rel, html);
+    }
+    if (this._hoverAnchor !== a) return; // 그새 벗어남
+    const r = a.getBoundingClientRect();
+    const W = 360;
+    this._hoverPreview = {
+      html,
+      title: this._titleOf(rel),
+      x: Math.min(r.left, window.innerWidth - W - 12),
+      y: Math.min(r.bottom + 6, window.innerHeight - 260),
+    };
+  }
+
+  _keepPreview() {
+    clearTimeout(this._hideTimer);
+  }
+
+  _hidePreview() {
+    clearTimeout(this._hideTimer);
+    this._hoverPreview = null;
+    this._hoverAnchor = null;
+  }
+
   _clearTagFilter() {
     this._tagFilter = null;
   }
@@ -2074,13 +2162,13 @@ ${lines.map(
                 ? this._renderRaw()
                 : this._marpSrc
                   ? this._marpAsPlain
-                    ? html`<article class="note" @click=${this._onNoteClick}>
+                    ? html`<article class="note" @click=${this._onNoteClick} @mouseover=${this._onNoteOver} @mouseout=${this._onNoteOut}>
                         ${unsafeHTML(this._noteHtml)}
                       </article>`
                     : html`<mdv-deck .src=${this._marpSrc}></mdv-deck>`
                   : this._selected
                     ? html`
-                      <article class="note" @click=${this._onNoteClick}>
+                      <article class="note" @click=${this._onNoteClick} @mouseover=${this._onNoteOver} @mouseout=${this._onNoteOut}>
                         ${unsafeHTML(this._noteHtml)}
                       </article>
                       ${this._renderBacklinks()}
@@ -2096,6 +2184,17 @@ ${lines.map(
       ${this._paletteOpen ? this._renderPalette() : ''}
       ${this._lightboxOpen ? this._renderLightbox() : ''}
       ${this._graphOpen ? this._renderGraph() : ''}
+      ${this._hoverPreview
+        ? html`<div
+            class="hover-preview"
+            style="left:${this._hoverPreview.x}px; top:${this._hoverPreview.y}px"
+            @mouseenter=${this._keepPreview}
+            @mouseleave=${this._hidePreview}
+          >
+            <div class="hp-title">${this._hoverPreview.title}</div>
+            <article class="note hp-body">${unsafeHTML(this._hoverPreview.html)}</article>
+          </div>`
+        : ''}
     `;
   }
 
