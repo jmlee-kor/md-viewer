@@ -178,7 +178,7 @@ function buildSnippets(text, terms, max) {
  */
 function searchContent(contents, titles, query, opts = {}) {
   const maxResults = opts.maxResults || 50;
-  const maxSnippets = opts.maxSnippets || 3;
+  const maxSnippets = opts.maxSnippets || 5;
   const q = String(query || '').trim().toLowerCase();
   const terms = q.split(/\s+/).filter(Boolean);
   if (!terms.length || q.length < 2) return [];

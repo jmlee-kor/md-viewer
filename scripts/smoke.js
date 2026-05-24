@@ -265,7 +265,31 @@ app.whenReady().then(async () => {
       }
       const noteMark = appEl.shadowRoot.querySelector('.note mark.search-hit');
       const noteHiOk = !!noteMark && /다이어그램/.test(noteMark.textContent);
-      const searchOk = searchApi && searchHasResult && searchEmpty && srItems >= 1 && srMark && noteHiOk;
+
+      // 매치 네비 + 횟수 표시: 다중 매치, 현재 매치 .current, ‹ n/m ›, _gotoMatch 순환
+      const matchTotal = appEl._searchMatchTotal;
+      await appEl.updateComplete;
+      const navBar = !!appEl.shadowRoot.querySelector('.view-bar .match-nav');
+      const navCountTxt = appEl.shadowRoot.querySelector('.match-count')?.textContent.trim();
+      const curBefore = appEl._searchMatchIdx;
+      appEl._gotoMatch(1); // 다음 매치
+      await appEl.updateComplete;
+      const movedNext = matchTotal > 1 ? appEl._searchMatchIdx === curBefore + 1 : true;
+      const curMarkOk = !!appEl.shadowRoot.querySelector('.note mark.search-hit.current');
+      const hitsBadge = !!appEl.shadowRoot.querySelector('.sr-hits'); // 결과 패널 매치횟수 배지
+      const navOk =
+        matchTotal >= 1 && navBar && /^\\d+\\/\\d+$/.test(navCountTxt || '') && movedNext && curMarkOk && hitsBadge;
+
+      // 검색 해제(✕) → 본문 마크 제거 (잔존 버그 회귀 가드)
+      appEl._clearSearch();
+      await appEl.updateComplete;
+      const clearedOk =
+        !appEl.shadowRoot.querySelector('.note mark.search-hit') &&
+        appEl._searchTerms.length === 0 &&
+        appEl._searchMatchTotal === 0;
+
+      const searchOk =
+        searchApi && searchHasResult && searchEmpty && srItems >= 1 && srMark && noteHiOk && navOk && clearedOk;
       appEl._searchQuery = ''; // 이후 테스트 위해 복원
       appEl._searchResults = [];
       appEl._searchTerms = [];

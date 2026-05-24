@@ -29,6 +29,8 @@ class MdvApp extends LitElement {
     _maximized: { state: true },
     _searchQuery: { state: true },
     _searchResults: { state: true },
+    _searchMatchIdx: { state: true },
+    _searchMatchTotal: { state: true },
   };
 
   static styles = [
@@ -307,6 +309,24 @@ class MdvApp extends LitElement {
       border-radius: 6px;
       overflow: hidden;
     }
+    /* 본문 검색 매치 네비 (‹ n/m ›) */
+    .match-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      border: 1px solid #3a3d41;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-left: auto;
+    }
+    .match-count {
+      font-size: 0.75rem;
+      color: var(--muted, #9aa0a6);
+      padding: 0 6px;
+      min-width: 34px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
     .tab {
       background: #2a2c2f;
       color: var(--muted, #9aa0a6);
@@ -335,6 +355,12 @@ class MdvApp extends LitElement {
       color: inherit;
       border-radius: 2px;
       padding: 0 1px;
+    }
+    /* 현재 선택된 매치 (다음/이전 네비) — 더 진하게 + 테두리 */
+    .note mark.search-hit.current {
+      background: var(--accent, #569cd6);
+      color: #fff;
+      box-shadow: 0 0 0 2px rgba(86, 156, 214, 0.5);
     }
     .empty {
       color: var(--muted, #9aa0a6);
@@ -402,6 +428,21 @@ class MdvApp extends LitElement {
       font-size: 0.85rem;
       font-weight: 600;
       color: var(--fg, #d4d4d4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    /* 결과 항목 매치 횟수 배지 */
+    .sr-hits {
+      flex: 0 0 auto;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--muted, #9aa0a6);
+      background: #2a2c2f;
+      border: 1px solid #3a3d41;
+      border-radius: 8px;
+      padding: 0 6px;
+      font-variant-numeric: tabular-nums;
     }
     .sr-path {
       font-size: 0.72rem;
@@ -650,6 +691,9 @@ class MdvApp extends LitElement {
     this._searchResults = [];
     this._searchTerms = [];
     this._searchTimer = null;
+    this._searchMatchIdx = -1;
+    this._searchMatchTotal = 0;
+    this._matchEls = []; // 현재 노트의 mark.search-hit 엘리먼트들 (비반응 캐시)
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -764,10 +808,21 @@ class MdvApp extends LitElement {
     }, 150);
   }
 
+  /** 검색창 Enter=다음 매치 / Shift+Enter=이전 매치 (현재 노트에 매치 있을 때) */
+  _onSearchKey(e) {
+    if (e.key === 'Enter' && this._searchMatchTotal) {
+      e.preventDefault();
+      this._gotoMatch(e.shiftKey ? -1 : 1);
+    }
+  }
+
   _clearSearch() {
     clearTimeout(this._searchTimer);
     this._searchQuery = '';
     this._searchResults = [];
+    this._searchTerms = []; // 본문 하이라이트도 해제 (✕ 후 마크 잔존 방지)
+    const note = this.renderRoot.querySelector('.note');
+    if (note) this._highlightSearch(note); // terms 빈 상태로 재실행 → 마크 제거 + 매치상태 리셋
   }
 
   /** 검색 결과에서 노트 열기 — 현재 검색어를 본문 하이라이트용으로 전달 */
@@ -829,7 +884,12 @@ class MdvApp extends LitElement {
       old.forEach((m) => m.replaceWith(document.createTextNode(m.textContent)));
       noteEl.normalize();
     }
-    if (!terms.length) return;
+    if (!terms.length) {
+      this._matchEls = [];
+      this._searchMatchTotal = 0;
+      this._searchMatchIdx = -1;
+      return;
+    }
 
     const walker = document.createTreeWalker(noteEl, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
@@ -842,15 +902,29 @@ class MdvApp extends LitElement {
     const targets = [];
     for (let n = walker.nextNode(); n; n = walker.nextNode()) targets.push(n);
 
-    let first = null;
     for (const textNode of targets) {
       const built = this._buildHighlight(textNode.nodeValue, terms);
-      if (built) {
-        if (!first) first = built.firstMark;
-        textNode.replaceWith(built.frag);
-      }
+      if (built) textNode.replaceWith(built.frag);
     }
-    if (first) first.scrollIntoView({ block: 'center' });
+    // 매치 네비게이션 상태 갱신: 첫 매치를 현재로 + 스크롤
+    this._matchEls = Array.from(noteEl.querySelectorAll('mark.search-hit'));
+    this._searchMatchTotal = this._matchEls.length;
+    if (this._matchEls.length) this._setCurrentMatch(0, true);
+    else this._searchMatchIdx = -1;
+  }
+
+  /** idx 번째 매치를 현재(.current)로 표시하고 스크롤. 범위 밖은 wrap. */
+  _setCurrentMatch(idx, scroll) {
+    if (!this._matchEls.length) return;
+    const n = ((idx % this._matchEls.length) + this._matchEls.length) % this._matchEls.length;
+    this._matchEls.forEach((m, i) => m.classList.toggle('current', i === n));
+    this._searchMatchIdx = n;
+    if (scroll) this._matchEls[n].scrollIntoView({ block: 'center' });
+  }
+
+  /** 다음(+1)/이전(-1) 매치로 이동 */
+  _gotoMatch(delta) {
+    if (this._searchMatchTotal) this._setCurrentMatch(this._searchMatchIdx + delta, true);
   }
 
   /** 텍스트를 term 매치 기준으로 분해해 <mark.search-hit> 가 섞인 DocumentFragment 생성. */
@@ -1015,6 +1089,7 @@ ${lines.map(
                   placeholder="vault 검색…"
                   .value=${this._searchQuery}
                   @input=${this._onSearchInput}
+                  @keydown=${this._onSearchKey}
                   aria-label="전문 검색"
                 />
                 ${this._searchQuery
@@ -1068,6 +1143,13 @@ ${lines.map(
           ? html`<div class="tabs">
               <button class="tab ${!this._marpAsPlain ? 'active' : ''}" title="슬라이드" @click=${() => this._setMarpPlain(false)}>▭</button>
               <button class="tab ${this._marpAsPlain ? 'active' : ''}" title="문서" @click=${() => this._setMarpPlain(true)}>≡</button>
+            </div>`
+          : ''}
+        ${this._searchTerms.length && this._searchMatchTotal && !this._rawView
+          ? html`<div class="match-nav">
+              <button class="tab" title="이전 매치 (Shift+Enter)" @click=${() => this._gotoMatch(-1)}>‹</button>
+              <span class="match-count">${this._searchMatchIdx + 1}/${this._searchMatchTotal}</span>
+              <button class="tab" title="다음 매치 (Enter)" @click=${() => this._gotoMatch(1)}>›</button>
             </div>`
           : ''}
       </div>
@@ -1155,7 +1237,10 @@ ${lines.map(
             title=${r.relPath}
             @click=${() => this._openSearchResult(r.relPath)}
           >
-            <div class="sr-title">${r.title}</div>
+            <div class="sr-title">
+              ${r.title}
+              ${r.count ? html`<span class="sr-hits" title="매치 ${r.count}건">${r.count}</span>` : ''}
+            </div>
             ${r.relPath.includes('/') ? html`<div class="sr-path">${r.relPath}</div>` : ''}
             ${r.snippets.map(
               (s) => html`<div class="sr-snip">
