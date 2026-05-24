@@ -12,15 +12,26 @@
     "test:index": "node scripts/test-index.cjs",
     "test:unit": "node scripts/test-vault.cjs && node scripts/test-index.cjs",
     "smoke": "electron scripts/smoke.js",
+    "make:icon": "electron scripts/make-icon.js",
     "dist": "electron-builder --win --dir",
     "install:local": "npm run dist && node scripts/install-local.mjs"
   },
   "build": {
     "appId": "com.local.md-viewer",
     "productName": "md-viewer",
-    "directories": { "output": "dist" },
-    "files": ["src/**/*", "vendor/**/*", "package.json"],
-    "win": { "target": "dir" }
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "vendor/**/*",
+      "assets/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "assets/icon.ico"
+    }
   },
   "license": "MIT",
   "devDependencies": {
@@ -32,6 +43,7 @@
     "esbuild": "^0.28.0",
     "lit": "^3.3.3",
     "markdown-it": "^14.2.0",
-    "mermaid": "^11.15.0"
+    "mermaid": "^11.15.0",
+    "png-to-ico": "^3.0.1"
   }
 }

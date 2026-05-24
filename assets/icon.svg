@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="56" fill="#569cd6"/>
+  <rect x="40" y="78" width="176" height="100" rx="16" fill="none" stroke="#ffffff" stroke-width="12"/>
+  <!-- M -->
+  <path d="M70 152 V104 L97 131 L124 104 V152" fill="none" stroke="#ffffff" stroke-width="13"
+        stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- 아래 화살표 (markdown down) -->
+  <path d="M168 104 V146 M150 130 L168 150 L186 130" fill="none" stroke="#ffffff" stroke-width="13"
+        stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
