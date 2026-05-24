@@ -376,6 +376,25 @@ app.whenReady().then(async () => {
       const headingMiss = appEl._scrollToHeading(hProbe, '없는헤딩');
       const headingAnchorOk = dataHeadingOk && headingFound === true && headingMiss === false;
 
+      // 아웃라인(TOC) 패널: 헤딩 목차 빌드 + 패널 렌더
+      appEl._marpSrc = null;
+      appEl._rawView = false;
+      appEl._error = null;
+      appEl._selected = 'toc.md';
+      appEl._src = '# 제목1\\n\\n## 절1\\n\\n## 절2\\n\\n### 소절';
+      appEl._tocOpen = true;
+      appEl._renderNoteHtml();
+      await appEl.updateComplete;
+      await appEl.updateComplete; // _buildToc 가 _toc(reactive) 설정 → 후속 렌더 대기
+      await sleep(30);
+      await appEl.updateComplete;
+      const tocItems = appEl.shadowRoot.querySelectorAll('.toc-panel .toc-item').length;
+      const tocOk = !!appEl.shadowRoot.querySelector('.toc-panel') && tocItems === 4 && appEl._toc.length === 4;
+      appEl._tocOpen = false;
+      appEl._selected = null;
+      appEl._src = '';
+      await appEl.updateComplete;
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -584,6 +603,7 @@ app.whenReady().then(async () => {
         wheelZoomOk,
         cjkFontOk,
         headingAnchorOk,
+        tocOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -654,6 +674,7 @@ app.whenReady().then(async () => {
     if (!result.wheelZoomOk) fail('Ctrl+휠 줌 실패 (ctrl+wheel → zoomIn 미호출)');
     if (!result.cjkFontOk) fail('CJK monospace 폰트 실패 (@font-face 로드/적용)');
     if (!result.headingAnchorOk) fail('헤딩 앵커 스크롤 실패 (data-heading/매칭)');
+    if (!result.tocOk) fail('아웃라인(TOC) 패널 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

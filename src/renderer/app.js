@@ -38,6 +38,8 @@ class MdvApp extends LitElement {
     _paletteIdx: { state: true },
     _lightboxOpen: { state: true },
     _lightboxSvg: { state: true },
+    _tocOpen: { state: true },
+    _toc: { state: true },
   };
 
   static styles = [
@@ -303,6 +305,49 @@ class MdvApp extends LitElement {
       flex-direction: column;
       min-height: 0;
       min-width: 0;
+      position: relative; /* toc-panel 절대배치 기준 */
+    }
+    /* 아웃라인(TOC) 패널 — 콘텐츠 우측 플로팅 */
+    .toc-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 220px;
+      overflow: auto;
+      background: #232323;
+      border-left: 1px solid #333;
+      padding: 0.6rem 0.5rem;
+      font-size: 0.82rem;
+    }
+    .toc-head {
+      font-size: 0.72rem;
+      color: var(--muted, #9aa0a6);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0 0.3rem 0.4rem;
+    }
+    .toc-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .toc-item {
+      padding: 0.18rem 0.4rem;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #c8ccd0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .toc-item:hover {
+      background: #2d3a4a;
+      color: #fff;
+    }
+    .toc-empty {
+      color: var(--muted, #9aa0a6);
+      padding: 0.5rem;
     }
     .view-scroll {
       flex: 1 1 auto;
@@ -959,6 +1004,8 @@ class MdvApp extends LitElement {
     this._lightboxSvg = '';
     this._lightboxName = 'diagram';
     this._lb = { scale: 1, x: 0, y: 0 }; // 라이트박스 변환 (비반응)
+    this._tocOpen = getSetting('tocOpen', false); // 아웃라인(TOC) 패널
+    this._toc = [];
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1456,6 +1503,7 @@ class MdvApp extends LitElement {
           this._scrollToHeading(note, this._pendingHeading); // [[note#heading]] 앵커
           this._pendingHeading = null;
         }
+        this._buildToc(note); // 아웃라인(TOC) 갱신
       }
     }
     // 빠른 전환기: 열릴 때 입력 포커스 / 선택 이동 시 활성 항목 가시화
@@ -1741,6 +1789,9 @@ ${lines.map(
                     `
                   : html`<div class="empty">노트를 선택하세요</div>`}
           </div>
+          ${this._tocOpen && this._selected && !this._rawView && !this._marpSrc
+            ? html`<aside class="toc-panel">${this._renderToc()}</aside>`
+            : ''}
         </div>
       </div>
       ${this._renderMenu()}
@@ -1829,7 +1880,51 @@ ${lines.map(
               <button class="tab" title="다음 매치 (Enter)" @click=${() => this._gotoMatch(1)}>›</button>
             </div>`
           : ''}
+        ${!this._rawView && !this._marpSrc
+          ? html`<div class="tabs toc-toggle">
+              <button class="tab ${this._tocOpen ? 'active' : ''}" title="아웃라인(목차)" @click=${this._toggleToc}>≣</button>
+            </div>`
+          : ''}
       </div>
+    `;
+  }
+
+  _toggleToc() {
+    this._tocOpen = !this._tocOpen;
+    setSetting('tocOpen', this._tocOpen);
+  }
+
+  /** 현재 노트의 헤딩으로 아웃라인 빌드 (헤딩에 data-toc-idx 부여). */
+  _buildToc(noteEl) {
+    const hs = noteEl.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    const toc = [];
+    hs.forEach((h, i) => {
+      h.dataset.tocIdx = String(i);
+      toc.push({ idx: i, level: Number(h.tagName[1]), text: h.textContent.trim() });
+    });
+    this._toc = toc;
+  }
+
+  _scrollToTocIdx(idx) {
+    const h = this.renderRoot.querySelector(`.note [data-toc-idx="${idx}"]`);
+    if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  _renderToc() {
+    if (!this._toc.length) return html`<div class="toc-empty">헤딩 없음</div>`;
+    const min = Math.min(...this._toc.map((t) => t.level));
+    return html`
+      <div class="toc-head">목차</div>
+      <ul class="toc-list">
+        ${this._toc.map(
+          (t) => html`<li
+            class="toc-item"
+            style="padding-left:${(t.level - min) * 0.8}rem"
+            @click=${() => this._scrollToTocIdx(t.idx)}
+            title=${t.text}
+          >${t.text}</li>`
+        )}
+      </ul>
     `;
   }
 
