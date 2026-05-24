@@ -68,11 +68,15 @@ function resolveTarget(resolve, rawTarget) {
  * @param readNote (relPath) => Promise<string>
  * @returns { resolve, backlinks, titles }
  */
+// #tag (Obsidian 호환): 공백/줄머리 뒤 #영숫자+. 코드펜스/헤딩(# 뒤 공백)은 제외.
+const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_][\p{L}\p{N}_/-]*)/gu;
+
 async function buildIndex(files, readNote) {
   const resolve = buildResolveMap(files);
   const backlinks = {}; // destRelPath -> [{from, alias}]
   const titles = {};
   const contents = {}; // relPath -> 원문 (전문 검색용. 렌더러로는 전송 안 함 — main 보관)
+  const tags = {}; // tag(소문자) -> Set<relPath>
 
   for (const f of files) {
     titles[f.relPath] = f.relPath.replace(/\.md$/i, '').split('/').pop();
@@ -86,6 +90,14 @@ async function buildIndex(files, readNote) {
       continue;
     }
     contents[f.relPath] = src; // 검색 인덱스로 재사용 (읽기 패스 1회 공유)
+    // #tag 추출 (코드펜스 내부는 간이 제외 — ``` 블록 스트립)
+    const noCode = src.replace(/```[\s\S]*?```/g, '').replace(/~~~[\s\S]*?~~~/g, '');
+    TAG_RE.lastIndex = 0;
+    let tm;
+    while ((tm = TAG_RE.exec(noCode))) {
+      const tag = tm[2].toLowerCase();
+      (tags[tag] ||= new Set()).add(f.relPath);
+    }
     WIKILINK_RE.lastIndex = 0;
     const seen = new Set();
     let m;
@@ -101,7 +113,10 @@ async function buildIndex(files, readNote) {
     }
   }
 
-  return { resolve, backlinks, titles, contents };
+  // Set → 정렬 배열로 직렬화 (IPC 전송 가능)
+  const tagIndex = {};
+  for (const [t, set] of Object.entries(tags)) tagIndex[t] = Array.from(set).sort();
+  return { resolve, backlinks, titles, contents, tagIndex };
 }
 
 /** 위키 임베드(![[...]]) 해석용 맵: 전체 파일(이미지 포함) basename·relPath(소문자)→relPath.

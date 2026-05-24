@@ -203,6 +203,26 @@ function calloutPlugin(md) {
   });
 }
 
+// #tag → 클릭 가능한 칩 <a class="mdv-tag" data-tag="..">. 앞이 공백/구두점/줄머리일 때만.
+function tagPlugin(md) {
+  md.inline.ruler.after('emphasis', 'mdv_tag', (state, silent) => {
+    if (state.src.charCodeAt(state.pos) !== 0x23 /* # */) return false;
+    if (state.pos !== 0 && !/[\s([]/.test(state.src[state.pos - 1])) return false;
+    const m = /^#([\p{L}\p{N}_][\p{L}\p{N}_/-]*)/u.exec(state.src.slice(state.pos, state.posMax));
+    if (!m) return false;
+    if (!silent) {
+      const open = state.push('link_open', 'a', 1);
+      open.attrSet('class', 'mdv-tag');
+      open.attrSet('data-tag', m[1].toLowerCase());
+      const txt = state.push('text', '', 0);
+      txt.content = '#' + m[1];
+      state.push('link_close', 'a', -1);
+    }
+    state.pos += m[0].length;
+    return true;
+  });
+}
+
 // 수식: 인라인 $...$ + 블록 $$...$$ → KaTeX. renderToString 동기 → 즉시 HTML.
 function katexRender(tex, display) {
   try {
@@ -316,13 +336,14 @@ const md = new MarkdownIt({
   .use(diagramFencePlugin)
   .use(calloutPlugin)
   .use(mathPlugin)
+  .use(tagPlugin)
   .use(imageRewritePlugin)
   .use(taskListPlugin);
 
 const PURIFY_OPTS = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
   ADD_TAGS: ['use'],
-  ADD_ATTR: ['target', 'data-target', 'data-raw', 'data-heading', 'data-callout', 'type', 'checked', 'disabled'],
+  ADD_ATTR: ['target', 'data-target', 'data-raw', 'data-heading', 'data-callout', 'data-tag', 'type', 'checked', 'disabled'],
   // 기본 안전 스킴 + 커스텀 mdv-res (vault 이미지) 허용
   ALLOWED_URI_REGEXP:
     /^(?:(?:https?|mailto|tel|callto|cid|xmpp|data|mdv-res):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,

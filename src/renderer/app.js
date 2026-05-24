@@ -40,6 +40,7 @@ class MdvApp extends LitElement {
     _lightboxSvg: { state: true },
     _tocOpen: { state: true },
     _toc: { state: true },
+    _tagFilter: { state: true },
   };
 
   static styles = [
@@ -876,6 +877,32 @@ class MdvApp extends LitElement {
     .note a {
       color: var(--accent, #569cd6);
     }
+    /* #tag 칩 */
+    .note .mdv-tag,
+    .mdv-tag {
+      display: inline-block;
+      font-size: 0.82em;
+      color: #4ec9b0;
+      background: rgba(78, 201, 176, 0.13);
+      border-radius: 10px;
+      padding: 0 0.5em;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .note .mdv-tag:hover {
+      background: rgba(78, 201, 176, 0.28);
+    }
+    .tagfilter-head {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.2rem 0.5rem;
+    }
+    .tagfilter-count {
+      font-size: 0.72rem;
+      color: var(--muted, #9aa0a6);
+      margin-right: auto;
+    }
     .note table {
       border-collapse: collapse;
     }
@@ -1006,6 +1033,7 @@ class MdvApp extends LitElement {
     this._lb = { scale: 1, x: 0, y: 0 }; // 라이트박스 변환 (비반응)
     this._tocOpen = getSetting('tocOpen', false); // 아웃라인(TOC) 패널
     this._toc = [];
+    this._tagFilter = null; // #tag 필터 (선택 시 사이드바에 해당 태그 노트 목록)
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1643,12 +1671,52 @@ class MdvApp extends LitElement {
         return;
       }
     }
+    const tag = e.target.closest?.('a.mdv-tag');
+    if (tag) {
+      e.preventDefault();
+      this._filterByTag(tag.getAttribute('data-tag'));
+      return;
+    }
     const a = e.target.closest?.('a.wikilink');
     if (!a) return;
     e.preventDefault();
     const target = a.getAttribute('data-target');
     const heading = a.getAttribute('data-heading'); // [[note#heading]] → 헤딩 스크롤
     if (target) this._onSelect(target, null, heading); // 해결된 링크만 이동
+  }
+
+  _filterByTag(tag) {
+    this._tagFilter = tag || null;
+  }
+
+  _clearTagFilter() {
+    this._tagFilter = null;
+  }
+
+  /** 태그 필터 시 사이드바: 해당 태그를 가진 노트 목록 */
+  _renderTagResults() {
+    const notes = (this._index?.tagIndex?.[this._tagFilter]) || [];
+    return html`
+      <div class="tagfilter-head">
+        <span class="mdv-tag">#${this._tagFilter}</span>
+        <span class="tagfilter-count">${notes.length}</span>
+        <button class="search-clear" title="태그 필터 해제" @click=${this._clearTagFilter}>✕</button>
+      </div>
+      ${notes.length
+        ? html`<div class="search-results">
+            ${notes.map(
+              (rel) => html`<div
+                class="sr-item ${this._selected === rel ? 'active' : ''}"
+                title=${rel}
+                @click=${() => this._onSelect(rel)}
+              >
+                <div class="sr-title">${this._titleOf(rel)}</div>
+                ${rel.includes('/') ? html`<div class="sr-path">${rel}</div>` : ''}
+              </div>`
+            )}
+          </div>`
+        : html`<div class="sr-empty">이 태그의 노트 없음</div>`}
+    `;
   }
 
   /** 현재 상태(일반 노트 / marp 평문)에 맞춰 _noteHtml 재계산. 덱 모드면 비움. */
@@ -1755,11 +1823,13 @@ ${lines.map(
                   : ''}
               </div>`
             : ''}
-          ${this._searchQuery.trim()
-            ? this._renderSearchResults()
-            : this._tree.length
-              ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
-              : html`<div class="empty">vault 없음</div>`}
+          ${this._tagFilter
+            ? this._renderTagResults()
+            : this._searchQuery.trim()
+              ? this._renderSearchResults()
+              : this._tree.length
+                ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
+                : html`<div class="empty">vault 없음</div>`}
         </aside>
         <div
           class="splitter"
