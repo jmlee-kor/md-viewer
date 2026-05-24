@@ -42,4 +42,26 @@ if (process.platform === 'win32') {
   console.log(`PATH 에 추가하세요: ${dest}`);
 }
 
+// 시작메뉴 바로가기 (작업표시줄 핀 고정이 named exe 에 묶이게)
+if (process.platform === 'win32') {
+  try {
+    const exe = path.join(dest, 'md-viewer.exe');
+    const startMenu = path.join(
+      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+      'Microsoft', 'Windows', 'Start Menu', 'Programs'
+    );
+    const lnk = path.join(startMenu, 'md-viewer.lnk');
+    const q = (s) => s.replace(/'/g, "''");
+    const ps =
+      `$w=New-Object -ComObject WScript.Shell; ` +
+      `$s=$w.CreateShortcut('${q(lnk)}'); ` +
+      `$s.TargetPath='${q(exe)}'; $s.WorkingDirectory='${q(dest)}'; ` +
+      `$s.IconLocation='${q(exe)},0'; $s.Description='md-viewer'; $s.Save()`;
+    execFileSync('powershell', ['-NoProfile', '-Command', ps]);
+    console.log('시작메뉴 바로가기 생성: md-viewer (여기서 실행/핀 고정 권장)');
+  } catch (e) {
+    console.warn('바로가기 생성 실패:', e.message);
+  }
+}
+
 console.log('PlantUML 은 번들된 tools(JRE+jar)로 자동 동작합니다 (설정 불필요).');

@@ -11,6 +11,11 @@ const linkIndex = require('./link-index');
 const plantuml = require('./plantuml');
 const resProtocol = require('./res-protocol');
 
+// Windows 작업표시줄 identity. 이게 없으면 "electron" 으로 그룹/표시된다.
+// build.appId 와 동일하게 맞춰 핀 고정·아이콘이 md-viewer 로 안정화.
+const APP_ID = 'com.local.md-viewer';
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
+
 // privileged scheme 등록은 app ready 이전이어야 함
 resProtocol.registerPrivileged();
 
