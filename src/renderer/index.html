@@ -4,12 +4,17 @@
     <meta charset="UTF-8" />
     <!--
       CSP: 로컬 리소스만 허용. 인라인 스크립트 차단 (모듈 스크립트는 'self').
-      style 은 Lit 의 동적 스타일 편의를 위해 'unsafe-inline' 임시 허용.
-      후속: D2 wasm 도입 시 'wasm-unsafe-eval' 추가.
+      - 'wasm-unsafe-eval': D2 의 WebAssembly 인스턴스화
+      - 'unsafe-eval': D2 의 ELK 레이아웃 엔진(GWT Java→JS 컴파일물)이 eval 사용.
+        ※ 다른 엔진(mermaid/drawio/markdown)은 eval 불필요. D2 때문에만 허용.
+        위험 제한: contextIsolation+sandbox+nodeIntegration off + connect-src 'self'
+        (네트워크 전면 차단)로 eval 코드도 Node/FS/네트워크 도달 불가.
+      - worker-src blob:: D2 의 인라인 blob 워커
+      - style 'unsafe-inline': Lit/다이어그램 동적 스타일
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; worker-src blob:"
     />
     <title>md-viewer</title>
     <link rel="stylesheet" href="styles.css" />

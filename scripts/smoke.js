@@ -28,7 +28,7 @@ app.whenReady().then(async () => {
   });
 
   // 외부 리소스 차단은 의도된 오프라인 동작(버그 아님) → 무해 처리
-  const BENIGN = /math4\/es5\/startup\.js|viewer\.diagrams\.net/;
+  const BENIGN = /math4\/es5\/startup\.js|viewer\.diagrams\.net|Electron Security Warning/;
   win.webContents.on('did-fail-load', (_e, code, desc) => fail(`did-fail-load ${code} ${desc}`));
   win.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2 && !BENIGN.test(message)) fail(`renderer console error: ${message}`);
@@ -72,6 +72,16 @@ app.whenReady().then(async () => {
       const drawioSvg = !!dx.querySelector('.mdv-diagram svg');
       const drawioErr = dx.querySelector('.mdv-diagram-msg')?.textContent || null;
 
+      // D2: wasm+worker(인라인) → SVG (wasm 초기화로 시간 소요 → 폴링)
+      const d2div = document.createElement('div');
+      d2div.style.width = '600px';
+      d2div.innerHTML = window.__mdvTest.renderMarkdown('~~~d2\\nx -> y\\n~~~');
+      document.body.appendChild(d2div);
+      await window.__mdvTest.hydrateDiagrams(d2div);
+      for (let i = 0; i < 100; i++) { if (d2div.querySelector('.mdv-diagram svg')) break; await sleep(100); }
+      const d2Svg = !!d2div.querySelector('.mdv-diagram svg');
+      const d2Err = d2div.querySelector('.mdv-diagram-msg')?.textContent || null;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -88,6 +98,8 @@ app.whenReady().then(async () => {
         mermaidErr,
         drawioSvg,
         drawioErr,
+        d2Svg,
+        d2Err,
       };
     })()`);
 
@@ -105,6 +117,7 @@ app.whenReady().then(async () => {
     if (!result.diagPlaceholder) fail('다이어그램 fence placeholder 생성 실패');
     if (!result.mermaidSvg) fail(`mermaid SVG 렌더 실패 (${result.mermaidErr || '원인 미상'})`);
     if (!result.drawioSvg) fail(`drawio SVG 렌더 실패 (${result.drawioErr || '원인 미상'})`);
+    if (!result.d2Svg) fail(`d2 SVG 렌더 실패 (${result.d2Err || '원인 미상'})`);
   } catch (e) {
     fail(String(e));
   }

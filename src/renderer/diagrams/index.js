@@ -2,5 +2,6 @@
 // 후속: ./drawio.js, ./d2.js 추가.
 import './mermaid.js';
 import './drawio.js';
+import './d2.js';
 
 export { hydrateDiagrams } from './registry.js';
