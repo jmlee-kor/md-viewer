@@ -1,16 +1,18 @@
-// 앱 셸: 툴바(vault 열기) + 사이드바(트리) + 노트 뷰.
-// 렌더러 진입점이자 <mdv-app> 정의.
+// 앱 셸: 툴바(vault 열기) + 사이드바(트리) + 노트 뷰 + 백링크 패널.
+// 위키링크 클릭 이동 + 파일 변경 라이브 갱신.
 
 import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
-import { renderMarkdown } from './markdown.js';
+import { renderMarkdown, makeResolver } from './markdown.js';
 
 class MdvApp extends LitElement {
   static properties = {
     _root: { state: true },
     _tree: { state: true },
+    _index: { state: true },
     _selected: { state: true },
     _noteHtml: { state: true },
+    _backlinks: { state: true },
     _error: { state: true },
   };
 
@@ -59,8 +61,10 @@ class MdvApp extends LitElement {
       border-right: 1px solid #333;
       background: #1e1e1e;
     }
-    .note {
+    .content {
       overflow: auto;
+    }
+    .note {
       padding: 1.5rem 2.5rem;
       max-width: 60rem;
     }
@@ -72,7 +76,33 @@ class MdvApp extends LitElement {
       color: #f44747;
       padding: 1rem 2.5rem;
     }
-    /* 렌더된 노트 본문 스타일 (shadow DOM 안이라 여기서 정의) */
+    /* 백링크 패널 */
+    .backlinks {
+      margin: 0 2.5rem 2rem;
+      max-width: 60rem;
+      border-top: 1px solid #333;
+      padding-top: 1rem;
+    }
+    .backlinks h3 {
+      font-size: 0.85rem;
+      color: var(--muted, #9aa0a6);
+      margin: 0 0 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .backlinks ul {
+      margin: 0;
+      padding-left: 1.1rem;
+    }
+    .backlinks a {
+      color: var(--accent, #569cd6);
+      cursor: pointer;
+    }
+    .backlinks .none {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.85rem;
+    }
+    /* 렌더된 노트 본문 스타일 */
     .note :first-child {
       margin-top: 0;
     }
@@ -117,27 +147,62 @@ class MdvApp extends LitElement {
     .note img {
       max-width: 100%;
     }
+    /* 위키링크 */
+    .note a.wikilink {
+      text-decoration: none;
+      border-bottom: 1px dashed var(--accent, #569cd6);
+    }
+    .note a.wikilink.broken {
+      color: #c97b7b;
+      border-bottom-color: #c97b7b;
+      cursor: help;
+    }
   `;
 
   constructor() {
     super();
     this._tree = [];
     this._root = null;
+    this._index = null;
     this._selected = null;
     this._noteHtml = '';
+    this._backlinks = [];
     this._error = null;
+    this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    // 파일 변경 라이브 갱신
+    this._unsub = window.mdv.onVaultChanged((data) => this._applyVault(data, true));
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._unsub?.();
+  }
+
+  _applyVault(data, keepSelection) {
+    this._root = data.root;
+    this._tree = data.tree;
+    this._index = data.index;
+    this._resolver = makeResolver(data.index?.resolve);
+    if (keepSelection && this._selected) {
+      this._onSelect(this._selected); // 현재 노트 재렌더 (내용 변경 반영)
+    } else {
+      this._selected = null;
+      this._noteHtml = '';
+      this._backlinks = [];
+    }
   }
 
   async _openVault() {
     this._error = null;
     try {
       const res = await window.mdv.openVault();
-      if (!res) return; // 취소
-      this._root = res.root;
-      this._tree = res.tree;
-      this._selected = null;
-      this._noteHtml = '';
+      if (!res) return;
+      this._applyVault(res, false);
     } catch (err) {
       this._error = String(err);
     }
@@ -148,11 +213,25 @@ class MdvApp extends LitElement {
     this._error = null;
     try {
       const src = await window.mdv.readNote(relPath);
-      this._noteHtml = renderMarkdown(src);
+      this._noteHtml = renderMarkdown(src, { resolveWikiLink: this._resolver });
+      this._backlinks = (this._index?.backlinks?.[relPath]) || [];
     } catch (err) {
       this._error = String(err);
       this._noteHtml = '';
+      this._backlinks = [];
     }
+  }
+
+  _onNoteClick(e) {
+    const a = e.target.closest?.('a.wikilink');
+    if (!a) return;
+    e.preventDefault();
+    const target = a.getAttribute('data-target');
+    if (target) this._onSelect(target); // 해결된 링크만 이동
+  }
+
+  _titleOf(relPath) {
+    return this._index?.titles?.[relPath] || relPath.replace(/\.md$/i, '');
   }
 
   render() {
@@ -167,19 +246,42 @@ class MdvApp extends LitElement {
             ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
             : html`<div class="empty">vault 없음</div>`}
         </aside>
-        <main>
+        <div class="content">
           ${this._error
             ? html`<div class="error">${this._error}</div>`
-            : this._noteHtml
-              ? html`<article class="note">${unsafeHTML(this._noteHtml)}</article>`
+            : this._selected
+              ? html`
+                  <article class="note" @click=${this._onNoteClick}>
+                    ${unsafeHTML(this._noteHtml)}
+                  </article>
+                  ${this._renderBacklinks()}
+                `
               : html`<div class="empty">노트를 선택하세요</div>`}
-        </main>
+        </div>
       </div>
+    `;
+  }
+
+  _renderBacklinks() {
+    return html`
+      <section class="backlinks">
+        <h3>백링크 (${this._backlinks.length})</h3>
+        ${this._backlinks.length
+          ? html`<ul>
+              ${this._backlinks.map(
+                (b) => html`<li>
+                  <a @click=${() => this._onSelect(b.from)}>${this._titleOf(b.from)}</a>
+                  ${b.alias ? html`<span class="none"> — "${b.alias}"</span>` : ''}
+                </li>`
+              )}
+            </ul>`
+          : html`<div class="none">이 노트를 참조하는 노트가 없습니다.</div>`}
+      </section>
     `;
   }
 }
 
 customElements.define('mdv-app', MdvApp);
 
-// 헤드리스 스모크/디버그용 훅 (GUI 다이얼로그 없이 렌더 파이프라인 검증)
-window.__mdvTest = { renderMarkdown };
+// 헤드리스 스모크/디버그용 훅
+window.__mdvTest = { renderMarkdown, makeResolver };

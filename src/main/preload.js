@@ -13,5 +13,11 @@ contextBridge.exposeInMainWorld('mdv', {
   rescan: () => ipcRenderer.invoke('vault:rescan'),
   /** vault 내부 노트 읽기 → 원문 문자열 */
   readNote: (relPath) => ipcRenderer.invoke('note:read', relPath),
+  /** vault 파일 변경 구독 → { root, tree, index }. 해제 함수 반환 */
+  onVaultChanged: (cb) => {
+    const listener = (_e, data) => cb(data);
+    ipcRenderer.on('vault:changed', listener);
+    return () => ipcRenderer.removeListener('vault:changed', listener);
+  },
   // 후속: renderPlantUML(src) 등 추가 예정
 });

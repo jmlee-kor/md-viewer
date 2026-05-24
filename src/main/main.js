@@ -1,16 +1,20 @@
 'use strict';
 
 // Electron main process.
-// 책임: 윈도우 생성 + 보안 기본값 + vault IPC. (PlantUML IPC 는 후속 단계에서 추가)
+// 책임: 윈도우 + 보안 기본값 + vault IPC + 링크 인덱스 + 파일 감시(fs.watch, 의존성 0).
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const fs = require('node:fs');
 const path = require('node:path');
 const vault = require('./vault');
+const linkIndex = require('./link-index');
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
-/** 현재 열린 vault 루트 (절대경로). note:read 의 경로 검증 기준. */
 let currentVaultRoot = null;
+let currentIndex = null;
+/** @type {fs.FSWatcher | null} */
+let watcher = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -33,26 +37,55 @@ function createWindow() {
   });
 }
 
-// --- IPC: vault 열기 (폴더 선택 → 스캔 → 트리 반환) ---
+/** vault 스캔 + 인덱스 구축 → 렌더러로 보낼 payload */
+async function loadVault(root) {
+  currentVaultRoot = root;
+  const tree = await vault.scanVault(root);
+  const files = linkIndex.flatten(tree);
+  currentIndex = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
+  return { root, tree, index: currentIndex };
+}
+
+/** 재귀 파일 감시. 변경 시 디바운스 후 재스캔 → 렌더러 통지. (Node 빌트인, 의존성 0) */
+function startWatch(root) {
+  if (watcher) {
+    watcher.close();
+    watcher = null;
+  }
+  let timer = null;
+  try {
+    watcher = fs.watch(root, { recursive: true }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const data = await loadVault(root);
+          mainWindow?.webContents.send('vault:changed', data);
+        } catch {
+          /* vault 삭제 등 — 무시 */
+        }
+      }, 250);
+    });
+  } catch {
+    /* recursive 미지원 플랫폼 등 — 감시 없이 동작 */
+  }
+}
+
 ipcMain.handle('vault:open', async () => {
   const res = await dialog.showOpenDialog(mainWindow ?? undefined, {
     title: 'Vault 폴더 선택',
     properties: ['openDirectory'],
   });
   if (res.canceled || !res.filePaths[0]) return null;
-  currentVaultRoot = res.filePaths[0];
-  const tree = await vault.scanVault(currentVaultRoot);
-  return { root: currentVaultRoot, tree };
+  const data = await loadVault(res.filePaths[0]);
+  startWatch(res.filePaths[0]);
+  return data;
 });
 
-// --- IPC: 특정 경로의 vault 재스캔 (파일 감시 단계에서 사용 예정) ---
 ipcMain.handle('vault:rescan', async () => {
   if (!currentVaultRoot) return null;
-  const tree = await vault.scanVault(currentVaultRoot);
-  return { root: currentVaultRoot, tree };
+  return loadVault(currentVaultRoot);
 });
 
-// --- IPC: 노트 읽기 (vault 내부 경로만) ---
 ipcMain.handle('note:read', async (_e, relPath) => {
   if (!currentVaultRoot) throw new Error('vault 미선택');
   return vault.readNote(currentVaultRoot, relPath);
@@ -66,5 +99,6 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (watcher) watcher.close();
   if (process.platform !== 'darwin') app.quit();
 });

@@ -7,4 +7,4 @@
 - [ ] 5. PlantUML
 - [ ] 6. Marp
 
-상위 노트: [[../Welcome]]
+상위 노트: [[Welcome]]
