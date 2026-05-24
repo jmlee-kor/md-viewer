@@ -141,7 +141,9 @@ function imageRewritePlugin(md) {
   };
 }
 
-// GFM 태스크리스트: 리스트 항목 첫 `[ ]`/`[x]` 를 읽기전용 체크박스로 치환.
+// GFM 태스크리스트 + 다단계 상태: 리스트 항목 첫 [ ]/[x]/[/]/[-] 를
+// data-task(todo/done/doing/cancelled) + 스타일 마커로 치환 (읽기 전용).
+const TASK_STATE = { ' ': 'todo', x: 'done', '/': 'doing', '-': 'cancelled' };
 function taskListPlugin(md) {
   md.core.ruler.after('inline', 'mdv-task-list', (state) => {
     const tokens = state.tokens;
@@ -150,19 +152,20 @@ function taskListPlugin(md) {
       if (tokens[i - 1].type !== 'paragraph_open') continue;
       if (tokens[i - 2].type !== 'list_item_open') continue;
       const inline = tokens[i];
-      const m = /^\[([ xX])\]\s+/.exec(inline.content);
+      const m = /^\[([ xX/\-])\]\s+/.exec(inline.content);
       if (!m) continue;
-      const checked = m[1].toLowerCase() === 'x';
+      const stateName = TASK_STATE[m[1].toLowerCase()];
 
-      tokens[i - 2].attrJoin('class', checked ? 'task-list-item task-done' : 'task-list-item');
+      tokens[i - 2].attrJoin('class', 'task-list-item');
+      tokens[i - 2].attrSet('data-task', stateName);
       inline.content = inline.content.slice(m[0].length);
       const children = inline.children || [];
       if (children[0] && children[0].type === 'text') {
-        children[0].content = children[0].content.replace(/^\[([ xX])\]\s+/, '');
+        children[0].content = children[0].content.replace(/^\[([ xX/\-])\]\s+/, '');
       }
-      const cb = new state.Token('html_inline', '', 0);
-      cb.content = `<input type="checkbox" class="task-checkbox" disabled${checked ? ' checked' : ''}> `;
-      children.unshift(cb);
+      const marker = new state.Token('html_inline', '', 0);
+      marker.content = `<span class="task-marker"></span> `;
+      children.unshift(marker);
     }
   });
 }

@@ -7,6 +7,7 @@ import { renderMarkdown, makeResolver } from './markdown.js';
 import { hydrateDiagrams } from './diagrams/index.js';
 import { hasMarpFrontmatter, renderMarp } from './marp.js';
 import { getSetting, setSetting } from './settings.js';
+import { scrollbarCss } from './scrollbar-css.js';
 import './deck.js';
 
 const MERMAID_THEMES = ['dark', 'default', 'neutral', 'forest'];
@@ -23,9 +24,13 @@ class MdvApp extends LitElement {
     _marpSrc: { state: true },
     _marpAsPlain: { state: true },
     _menuOpen: { state: true },
+    _rawView: { state: true },
+    _recent: { state: true },
   };
 
-  static styles = css`
+  static styles = [
+    scrollbarCss,
+    css`
     :host {
       display: flex;
       flex-direction: column;
@@ -137,6 +142,49 @@ class MdvApp extends LitElement {
       background: #3a3d41;
       margin: 0.15rem 0;
     }
+    .recent-h {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0.2rem 0;
+    }
+    .recent-item {
+      display: flex;
+      gap: 0.3rem;
+      align-items: stretch;
+    }
+    .recent-open {
+      flex: 1 1 auto;
+      text-align: left;
+      background: #2d2f33;
+      color: var(--fg, #d4d4d4);
+      border: 1px solid #3a3d41;
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .recent-open:hover {
+      background: #34373c;
+    }
+    .recent-rm {
+      flex: 0 0 auto;
+      background: transparent;
+      color: var(--muted, #9aa0a6);
+      border: 1px solid #3a3d41;
+      border-radius: 5px;
+      cursor: pointer;
+      padding: 0 8px;
+    }
+    .recent-rm:hover {
+      background: #a33636;
+      color: #fff;
+      border-color: #a33636;
+    }
     .menu-actions {
       display: flex;
       flex-wrap: wrap;
@@ -193,6 +241,28 @@ class MdvApp extends LitElement {
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
+    }
+    /* 원본(raw) 보기 */
+    .raw {
+      margin: 0;
+      padding: 1rem 1.5rem;
+      font-family: "Consolas", "D2Coding", monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .raw-line {
+      display: flex;
+    }
+    .raw .ln {
+      flex: 0 0 3em;
+      text-align: right;
+      padding-right: 1em;
+      color: var(--muted, #9aa0a6);
+      user-select: none;
+    }
+    .raw code {
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     /* 백링크 패널 */
     .backlinks {
@@ -287,18 +357,56 @@ class MdvApp extends LitElement {
     .note img {
       max-width: 100%;
     }
-    /* GFM 태스크리스트 체크박스 (읽기 전용) */
+    /* GFM 태스크리스트 다단계 상태 (읽기 전용, data-task: todo/done/doing/cancelled) */
     .note li.task-list-item {
       list-style: none;
     }
-    .note .task-checkbox {
-      margin: 0 0.45em 0 -1.4em;
-      vertical-align: middle;
-      cursor: default;
+    .note .task-marker {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      box-sizing: border-box;
+      border: 1.5px solid var(--muted, #9aa0a6);
+      border-radius: 3px;
+      margin: 0 0.45em 0 -1.45em;
+      vertical-align: -0.12em;
+      position: relative;
     }
-    .note li.task-done {
+    .note .task-marker::after {
+      position: absolute;
+      inset: 0;
+      text-align: center;
+      line-height: 0.95em;
+      font-size: 0.85em;
+      font-weight: bold;
+    }
+    .note li[data-task='done'] .task-marker {
+      background: var(--accent, #569cd6);
+      border-color: var(--accent, #569cd6);
+    }
+    .note li[data-task='done'] .task-marker::after {
+      content: '✓';
+      color: #fff;
+    }
+    .note li[data-task='done'] {
       color: var(--muted, #9aa0a6);
       text-decoration: line-through;
+    }
+    .note li[data-task='doing'] .task-marker {
+      border-color: #d8a657;
+    }
+    .note li[data-task='doing'] .task-marker::after {
+      content: '/';
+      color: #d8a657;
+    }
+    .note li[data-task='cancelled'] {
+      color: var(--muted, #9aa0a6);
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+    .note li[data-task='cancelled'] .task-marker::after {
+      content: '✕';
+      color: var(--muted, #9aa0a6);
     }
     /* 다이어그램 */
     .note .mdv-diagram {
@@ -327,7 +435,8 @@ class MdvApp extends LitElement {
       border-bottom-color: #c97b7b;
       cursor: help;
     }
-  `;
+  `,
+  ];
 
   constructor() {
     super();
@@ -338,6 +447,7 @@ class MdvApp extends LitElement {
     this._noteHtml = '';
     this._backlinks = [];
     this._error = null;
+    this._recent = getSetting('recentVaults', []);
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -373,14 +483,44 @@ class MdvApp extends LitElement {
       const res = await window.mdv.openVault();
       if (!res) return;
       this._applyVault(res, false);
+      this._addRecent(res.root);
     } catch (err) {
       this._error = String(err);
     }
   }
 
+  // --- 최근 vault 목록 (localStorage 영속) ---
+  _addRecent(root) {
+    this._recent = [root, ...this._recent.filter((p) => p !== root)].slice(0, 8);
+    setSetting('recentVaults', this._recent);
+  }
+
+  _removeRecent(root) {
+    this._recent = this._recent.filter((p) => p !== root);
+    setSetting('recentVaults', this._recent);
+  }
+
+  async _openRecent(root) {
+    this._error = null;
+    try {
+      const res = await window.mdv.openVaultPath(root);
+      this._applyVault(res, false);
+      this._addRecent(res.root);
+      this._menuOpen = false;
+    } catch (err) {
+      this._error = String(err); // 경로 사라짐 등
+      this._removeRecent(root);
+    }
+  }
+
+  _vaultName(p) {
+    return p.split(/[\\/]/).filter(Boolean).pop() || p;
+  }
+
   async _onSelect(relPath) {
     this._selected = relPath;
     this._error = null;
+    this._rawView = false; // 새 노트는 렌더 뷰 기본
     try {
       const src = await window.mdv.readNote(relPath);
       this._src = src;
@@ -488,6 +628,20 @@ class MdvApp extends LitElement {
     window.mdv.appAction(name);
   }
 
+  _toggleRaw() {
+    this._rawView = !this._rawView;
+  }
+
+  /** 원문 마크다운 + 라인번호 (Lit 텍스트 보간으로 자동 이스케이프 → 살균 불필요) */
+  _renderRaw() {
+    const lines = (this._src || '').split('\n');
+    return html`<pre class="raw">
+${lines.map(
+        (line, i) => html`<div class="raw-line"><span class="ln">${i + 1}</span><code>${line || ' '}</code></div>`
+      )}</pre
+    >`;
+  }
+
   render() {
     return html`
       <div class="body">
@@ -499,14 +653,16 @@ class MdvApp extends LitElement {
         <div class="content">
           ${this._error
             ? html`<div class="error">${this._error}</div>`
-            : this._marpSrc
-              ? this._marpAsPlain
-                ? html`<article class="note" @click=${this._onNoteClick}>
-                    ${unsafeHTML(this._noteHtml)}
-                  </article>`
-                : html`<mdv-deck .src=${this._marpSrc}></mdv-deck>`
-              : this._selected
-                ? html`
+            : this._selected && this._rawView
+              ? this._renderRaw()
+              : this._marpSrc
+                ? this._marpAsPlain
+                  ? html`<article class="note" @click=${this._onNoteClick}>
+                      ${unsafeHTML(this._noteHtml)}
+                    </article>`
+                  : html`<mdv-deck .src=${this._marpSrc}></mdv-deck>`
+                : this._selected
+                  ? html`
                     <article class="note" @click=${this._onNoteClick}>
                       ${unsafeHTML(this._noteHtml)}
                     </article>
@@ -532,9 +688,29 @@ class MdvApp extends LitElement {
         <div class="menu-panel">
           <button data-open @click=${this._openVault}>Vault 열기</button>
           <div class="vault-path">${this._root ?? '폴더를 선택하세요'}</div>
+          ${this._recent.length
+            ? html`<div class="recent">
+                <div class="recent-h">최근 vault</div>
+                ${this._recent.map(
+                  (p) => html`<div class="recent-item">
+                    <button class="recent-open" title=${p} @click=${() => this._openRecent(p)}>
+                      ${this._vaultName(p)}
+                    </button>
+                    <button class="recent-rm" title="목록에서 제거" @click=${() => this._removeRecent(p)}>
+                      ✕
+                    </button>
+                  </div>`
+                )}
+              </div>`
+            : ''}
           ${this._marpSrc
             ? html`<button class="tbtn" @click=${this._toggleMarpView}>
                 ${this._marpAsPlain ? '◫ 슬라이드로' : '▤ 문서로'}
+              </button>`
+            : ''}
+          ${this._selected
+            ? html`<button class="tbtn" @click=${this._toggleRaw}>
+                ${this._rawView ? '📖 렌더 보기' : '📄 원본 보기'}
               </button>`
             : ''}
           <label

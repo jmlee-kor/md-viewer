@@ -106,6 +106,14 @@ ipcMain.handle('vault:rescan', async () => {
   return loadVault(currentVaultRoot);
 });
 
+// --- IPC: 경로로 vault 열기 (최근 목록에서 재오픈, 다이얼로그 없이) ---
+ipcMain.handle('vault:openPath', async (_e, root) => {
+  if (!root || !fs.existsSync(root)) throw new Error(`vault 경로 없음: ${root}`);
+  const data = await loadVault(root);
+  startWatch(root);
+  return data;
+});
+
 ipcMain.handle('note:read', async (_e, relPath) => {
   if (!currentVaultRoot) throw new Error('vault 미선택');
   return vault.readNote(currentVaultRoot, relPath);

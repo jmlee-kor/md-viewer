@@ -1,6 +1,7 @@
 // Marp 슬라이드 덱 뷰어. src(원문) → 슬라이드들, 한 장씩 표시 + 이전/다음 네비게이션.
 import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
 import { renderMarp } from './marp.js';
+import { scrollbarCss } from './scrollbar-css.js';
 
 class MdvDeck extends LitElement {
   static properties = {
@@ -12,7 +13,9 @@ class MdvDeck extends LitElement {
     _error: { state: true },
   };
 
-  static styles = css`
+  static styles = [
+    scrollbarCss,
+    css`
     :host {
       display: grid;
       grid-template-rows: 1fr auto;
@@ -62,7 +65,8 @@ class MdvDeck extends LitElement {
       color: #f44747;
       padding: 1.5rem;
     }
-  `;
+  `,
+  ];
 
   constructor() {
     super();

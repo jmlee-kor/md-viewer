@@ -25,3 +25,23 @@ mdv-app {
   flex-direction: column;
   height: 100%;
 }
+
+/* document 레벨 스크롤바 (Shadow DOM 안은 각 컴포넌트가 별도 적용) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3d41;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #565b60;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}

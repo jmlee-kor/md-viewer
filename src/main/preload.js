@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('mdv', {
   openVault: () => ipcRenderer.invoke('vault:open'),
   /** 현재 vault 재스캔 → { root, tree } | null */
   rescan: () => ipcRenderer.invoke('vault:rescan'),
+  /** 경로로 vault 열기 (최근 목록 재오픈) → { root, tree, index } */
+  openVaultPath: (root) => ipcRenderer.invoke('vault:openPath', root),
   /** vault 내부 노트 읽기 → 원문 문자열 */
   readNote: (relPath) => ipcRenderer.invoke('note:read', relPath),
   /** PlantUML 원문 → { ok, svg } | { ok:false, error } */

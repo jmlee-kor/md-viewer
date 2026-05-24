@@ -56,9 +56,11 @@ app.whenReady().then(async () => {
       const resolver = window.__mdvTest.makeResolver({ diagrams: 'Diagrams.md' });
       const wl = window.__mdvTest.renderMarkdown('[[Diagrams]] · [[없음]] · [[Diagrams|별칭]]', { resolveWikiLink: resolver });
 
-      // GFM 태스크리스트 체크박스
-      const tl = window.__mdvTest.renderMarkdown('- [ ] 할일\\n- [x] 완료');
-      const taskOk = /<input[^>]*type="checkbox"/.test(tl) && /checked/.test(tl) && /task-list-item/.test(tl) && /task-done/.test(tl);
+      // GFM 태스크리스트 다단계 상태
+      const tl = window.__mdvTest.renderMarkdown('- [ ] 할일\\n- [x] 완료\\n- [/] 진행\\n- [-] 취소');
+      const taskOk = /class="task-marker"/.test(tl)
+        && /data-task="todo"/.test(tl) && /data-task="done"/.test(tl)
+        && /data-task="doing"/.test(tl) && /data-task="cancelled"/.test(tl);
 
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -171,6 +173,23 @@ app.whenReady().then(async () => {
       const actionBtnCount = appEl.shadowRoot.querySelectorAll('.menu [data-action]').length;
       const menuActionsOk = appActionApi && actionBtnCount >= 8;
 
+      // md 원본(raw) 보기: 상태 주입 → 라인번호 pre, 렌더 아님
+      appEl._src = '# 제목\\n본문줄';
+      appEl._selected = 'x.md';
+      appEl._rawView = true;
+      await appEl.updateComplete;
+      const rawEl = appEl.shadowRoot.querySelector('.raw');
+      const rawOk = !!rawEl && rawEl.querySelectorAll('.raw-line').length === 2 && !rawEl.querySelector('h1') && /제목/.test(rawEl.textContent);
+
+      // 최근 vault 리스트: API + 메뉴 항목(basename 표시)
+      const recentApi = typeof window.mdv.openVaultPath === 'function';
+      appEl._recent = ['D:/foo/MyVault', 'C:/x/Other'];
+      appEl._menuOpen = true;
+      await appEl.updateComplete;
+      const recentItems = appEl.shadowRoot.querySelectorAll('.recent-item').length;
+      const recentName = appEl.shadowRoot.querySelector('.recent-open')?.textContent.trim();
+      const recentOk = recentApi && recentItems === 2 && recentName === 'MyVault';
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -205,6 +224,8 @@ app.whenReady().then(async () => {
         menuOk,
         menuActionsOk,
         actionBtnCount,
+        rawOk,
+        recentOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -244,6 +265,8 @@ app.whenReady().then(async () => {
     if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
     if (!result.menuOk) fail('플로팅 메뉴 토글/패널 실패');
     if (!result.menuActionsOk) fail(`창/보기 액션 메뉴 실패 (appAction API/버튼수=${result.actionBtnCount})`);
+    if (!result.rawOk) fail('md 원본(raw) 보기 렌더 실패');
+    if (!result.recentOk) fail('최근 vault 리스트 실패');
   } catch (e) {
     fail(String(e));
   }
