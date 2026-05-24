@@ -296,13 +296,25 @@ class MdvApp extends LitElement {
       background: var(--accent, #569cd6);
     }
     .sidebar {
-      overflow: auto;
+      display: flex;
+      flex-direction: column;
       min-height: 0;
       min-width: 0;
-      /* 하단 padding 으로 좌하단 플로팅 ☰ 버튼에 마지막 트리 항목이 가리지 않게 */
-      padding: 0.6rem 0.6rem 64px;
+      overflow: hidden;
       border-right: 1px solid var(--border, #333);
       background: var(--bg, #1e1e1e);
+    }
+    /* 검색박스는 고정 상단(스크롤과 분리) — sticky 겹침 버그 해소 */
+    .sidebar > .search {
+      flex: 0 0 auto;
+      padding: 0.6rem 0.6rem 0;
+    }
+    .sidebar-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      /* 하단 padding 으로 좌하단 플로팅 ☰ 버튼에 마지막 트리 항목이 가리지 않게 */
+      padding: 0.5rem 0.6rem 64px;
     }
     .content {
       display: flex;
@@ -357,6 +369,26 @@ class MdvApp extends LitElement {
       flex: 1 1 auto;
       overflow: auto;
       min-height: 0;
+    }
+    /* 상위 경로 breadcrumb */
+    .breadcrumb {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.74rem;
+      color: var(--muted, #9aa0a6);
+      border-bottom: 1px solid var(--border, #333);
+      background: var(--panel, #232323);
+    }
+    .bc-cur {
+      color: var(--fg, #d4d4d4);
+      font-weight: 600;
+    }
+    .bc-sep {
+      opacity: 0.6;
     }
     /* 콘텐츠 상단 토글 바 */
     .view-bar {
@@ -452,17 +484,12 @@ class MdvApp extends LitElement {
       color: var(--muted, #9aa0a6);
       padding: 2rem;
     }
-    /* 사이드바 전문 검색 */
+    /* 사이드바 전문 검색 (flex:0 상단 고정 — sticky 불필요) */
     .search {
-      position: sticky;
-      top: 0;
-      z-index: 1;
       display: flex;
       gap: 4px;
       align-items: center;
       background: var(--bg, #1e1e1e);
-      padding-bottom: 0.5rem;
-      margin-bottom: 0.3rem;
     }
     .search input {
       flex: 1 1 auto;
@@ -2139,13 +2166,15 @@ ${lines.map(
                   : ''}
               </div>`
             : ''}
-          ${this._tagFilter
-            ? this._renderTagResults()
-            : this._searchQuery.trim()
-              ? this._renderSearchResults()
-              : this._tree.length
-                ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
-                : html`<div class="empty">vault 없음</div>`}
+          <div class="sidebar-scroll">
+            ${this._tagFilter
+              ? this._renderTagResults()
+              : this._searchQuery.trim()
+                ? this._renderSearchResults()
+                : this._tree.length
+                  ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
+                  : html`<div class="empty">vault 없음</div>`}
+          </div>
         </aside>
         <div
           class="splitter"
@@ -2154,6 +2183,7 @@ ${lines.map(
           @dblclick=${this._resetSidebarWidth}
         ></div>
         <div class="content">
+          ${this._selected ? this._renderBreadcrumb() : ''}
           ${this._selected ? this._renderViewBar() : ''}
           <div class="view-scroll">
             ${this._error
@@ -2294,6 +2324,23 @@ ${lines.map(
   _toggleToc() {
     this._tocOpen = !this._tocOpen;
     setSetting('tocOpen', this._tocOpen);
+  }
+
+  /** 현재 노트의 상위 경로 breadcrumb (vault › 폴더 › … › 노트). 위치 파악용. */
+  _renderBreadcrumb() {
+    const parts = this._selected.replace(/\.md$/i, '').split('/');
+    const vault = this._root ? this._vaultName(this._root) : 'vault';
+    return html`
+      <div class="breadcrumb" title=${this._selected}>
+        <span class="bc-seg bc-root">${vault}</span>
+        ${parts.map(
+          (p, i) => html`<span class="bc-sep">›</span><span
+              class="bc-seg ${i === parts.length - 1 ? 'bc-cur' : ''}"
+            >${p}</span
+          >`
+        )}
+      </div>
+    `;
   }
 
   /** 현재 노트의 헤딩으로 아웃라인 빌드 (헤딩에 data-toc-idx 부여). */

@@ -221,7 +221,7 @@ app.whenReady().then(async () => {
 
       // 독립 스크롤: 사이드바/콘텐츠가 각자 bounded scroll container 이고 독립적인가
       const appEl = document.querySelector('mdv-app');
-      const sb = appEl.shadowRoot.querySelector('.sidebar');
+      const sb = appEl.shadowRoot.querySelector('.sidebar-scroll'); // 검색박스 분리 후 스크롤 영역
       const ct = appEl.shadowRoot.querySelector('.view-scroll'); // 스크롤 컨테이너 (상단 토글바 분리 후)
       const tall = () => { const d = document.createElement('div'); d.style.height = '3000px'; d.textContent = '.'; return d; };
       sb.appendChild(tall());
@@ -484,6 +484,25 @@ app.whenReady().then(async () => {
       appEl._hidePreview();
       await appEl.updateComplete;
 
+      // breadcrumb(상위 경로) + 사이드바 구조(검색박스 flex 고정 + 스크롤 영역 분리)
+      appEl._root = 'D:/MyVault';
+      appEl._tree = [{ name: 'Projects', type: 'dir', relPath: 'Projects', children: [
+        { name: 'Roadmap.md', type: 'file', relPath: 'Projects/Roadmap.md' }] }];
+      appEl._marpSrc = null;
+      appEl._rawView = false;
+      appEl._selected = 'Projects/Roadmap.md';
+      appEl._src = '# 로드맵';
+      appEl._renderNoteHtml();
+      await appEl.updateComplete;
+      await sleep(20);
+      await appEl.updateComplete;
+      const bcText = appEl.shadowRoot.querySelector('.breadcrumb')?.textContent || '';
+      const bcSegs = appEl.shadowRoot.querySelectorAll('.breadcrumb .bc-seg').length;
+      const breadcrumbOk = bcSegs === 3 && /MyVault/.test(bcText) && /Projects/.test(bcText) && /Roadmap/.test(bcText);
+      const sidebarOk = !!appEl.shadowRoot.querySelector('.sidebar > .search')
+        && !!appEl.shadowRoot.querySelector('.sidebar-scroll');
+      const breadcrumbAllOk = breadcrumbOk && sidebarOk;
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -700,6 +719,7 @@ app.whenReady().then(async () => {
         historyOk,
         graphOk,
         hoverOk,
+        breadcrumbAllOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -778,6 +798,7 @@ app.whenReady().then(async () => {
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
     if (!result.hoverOk) fail('링크 hover 미리보기 실패');
+    if (!result.breadcrumbAllOk) fail('breadcrumb/사이드바 구조 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
