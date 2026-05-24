@@ -309,8 +309,10 @@ class MdvApp extends LitElement {
       background: #2a2c2f;
       color: var(--muted, #9aa0a6);
       border: 0;
-      padding: 3px 12px;
-      font-size: 0.78rem;
+      padding: 3px 0;
+      min-width: 36px;
+      text-align: center;
+      font-size: 0.85rem;
       cursor: pointer;
     }
     .tab:hover {
@@ -841,17 +843,13 @@ ${lines.map(
     return html`
       <div class="view-bar">
         <div class="tabs">
-          <button class="tab ${!this._rawView ? 'active' : ''}" @click=${() => (this._rawView = false)}>렌더</button>
-          <button class="tab ${this._rawView ? 'active' : ''}" @click=${() => (this._rawView = true)}>원본</button>
+          <button class="tab ${!this._rawView ? 'active' : ''}" title="렌더 보기" @click=${() => (this._rawView = false)}>👁</button>
+          <button class="tab ${this._rawView ? 'active' : ''}" title="원본 보기" @click=${() => (this._rawView = true)}>&lt;/&gt;</button>
         </div>
         ${this._marpSrc
           ? html`<div class="tabs">
-              <button class="tab ${!this._marpAsPlain ? 'active' : ''}" @click=${() => this._setMarpPlain(false)}>
-                슬라이드
-              </button>
-              <button class="tab ${this._marpAsPlain ? 'active' : ''}" @click=${() => this._setMarpPlain(true)}>
-                문서
-              </button>
+              <button class="tab ${!this._marpAsPlain ? 'active' : ''}" title="슬라이드" @click=${() => this._setMarpPlain(false)}>▭</button>
+              <button class="tab ${this._marpAsPlain ? 'active' : ''}" title="문서" @click=${() => this._setMarpPlain(true)}>≡</button>
             </div>`
           : ''}
       </div>
