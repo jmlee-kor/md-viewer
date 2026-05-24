@@ -171,7 +171,7 @@ app.whenReady().then(async () => {
       // 네이티브 메뉴 대체: appAction API 노출 + 플로팅 패널에 액션 버튼들
       const appActionApi = typeof window.mdv.appAction === 'function';
       const actionBtnCount = appEl.shadowRoot.querySelectorAll('.menu [data-action]').length;
-      const menuActionsOk = appActionApi && actionBtnCount >= 8;
+      const menuActionsOk = appActionApi && actionBtnCount >= 5; // 보기 액션 6개 (창 액션은 타이틀바로 이동)
 
       // md 원본(raw) 보기: 상태 주입 → 라인번호 pre, 렌더 아님
       appEl._src = '# 제목\\n본문줄';

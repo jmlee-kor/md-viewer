@@ -184,6 +184,12 @@ class MdvApp extends LitElement {
       background: #3a3d41;
       margin: 0.15rem 0;
     }
+    .menu-label {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
     .recent-h {
       color: var(--muted, #9aa0a6);
       font-size: 0.72rem;
@@ -796,6 +802,7 @@ ${lines.map(
             </select>
           </label>
           <div class="menu-sep"></div>
+          <div class="menu-label">보기</div>
           <div class="menu-actions" role="group" aria-label="보기">
             <button class="iconbtn" data-action title="축소" @click=${() => this._appAction('zoomOut')}>A−</button>
             <button class="iconbtn" data-action title="기본 배율" @click=${() => this._appAction('zoomReset')}>100%</button>
@@ -804,11 +811,7 @@ ${lines.map(
             <button class="iconbtn" data-action title="새로고침" @click=${() => this._appAction('reload')}>↻</button>
             <button class="iconbtn" data-action title="개발자 도구" @click=${() => this._appAction('devtools')}>{ }</button>
           </div>
-          <div class="menu-actions" role="group" aria-label="창">
-            <button class="iconbtn" data-action title="최소화" @click=${() => this._appAction('minimize')}>—</button>
-            <button class="iconbtn" data-action title="닫기" @click=${() => this._appAction('close')}>✕</button>
-            <button class="iconbtn danger" data-action title="종료" @click=${() => this._appAction('quit')}>⏻</button>
-          </div>
+          <!-- 최소화/최대화/닫기는 커스텀 타이틀바로 이동 (중복 제거) -->
         </div>
       </div>
     `;
