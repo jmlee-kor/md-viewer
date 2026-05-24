@@ -601,12 +601,14 @@ class MdvApp extends LitElement {
   }
 
   updated(changed) {
-    // 노트 HTML 이 새로 그려진 뒤 다이어그램 렌더 + 헤딩 접기 설정.
-    if (changed.has('_noteHtml') && this._noteHtml) {
+    // 노트 article 이 (재)생성될 수 있는 변경: 새 노트(_noteHtml) / 원본↔렌더(_rawView)
+    // / marp 평문↔덱(_marpAsPlain). 원본→렌더 복귀처럼 _noteHtml 문자열이 동일해도
+    // article DOM 이 새로 생기므로 _rawView 변경에도 재hydrate 해야 한다.
+    if (changed.has('_noteHtml') || changed.has('_rawView') || changed.has('_marpAsPlain')) {
       const note = this.renderRoot.querySelector('.note');
       if (note) {
-        hydrateDiagrams(note);
-        this._setupHeadingFold(note);
+        hydrateDiagrams(note); // placeholder dataset.hydrated 로 멱등
+        this._setupHeadingFold(note); // heading dataset.mdvFold 로 멱등
       }
     }
   }
@@ -615,6 +617,8 @@ class MdvApp extends LitElement {
   _setupHeadingFold(noteEl) {
     const headings = Array.from(noteEl.children).filter((el) => /^H[1-6]$/.test(el.tagName));
     for (const h of headings) {
+      if (h.dataset.mdvFold === '1') continue; // 중복 리스너 방지 (멱등)
+      h.dataset.mdvFold = '1';
       h.classList.add('mdv-h');
       h.addEventListener('click', (e) => {
         if (e.target.closest('a')) return; // 헤딩 내 링크 클릭은 제외

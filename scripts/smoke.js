@@ -205,6 +205,29 @@ app.whenReady().then(async () => {
       const exportBtns = deckEl.shadowRoot.querySelectorAll('[data-export]').length;
       const marpExportOk = typeof window.mdv.exportMarp === 'function' && exportBtns === 2;
 
+      // [버그] 원본↔렌더 토글 후 다이어그램 재hydrate: mermaid 노트 → 렌더→원본→렌더
+      appEl._marpSrc = null;
+      appEl._selected = 'd.md';
+      appEl._curDir = '';
+      appEl._rawView = false;
+      appEl._src = '~~~mermaid\\ngraph TD\\n  A-->B\\n~~~';
+      appEl._renderNoteHtml();
+      await appEl.updateComplete;
+      const waitSvg = async () => {
+        for (let i = 0; i < 40; i++) {
+          if (appEl.shadowRoot.querySelector('.note .mdv-diagram svg')) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const svgBefore = await waitSvg();
+      appEl._rawView = true; // 원본 보기
+      await appEl.updateComplete;
+      appEl._rawView = false; // 렌더 복귀
+      await appEl.updateComplete;
+      const svgAfter = await waitSvg();
+      const reHydrateOk = svgBefore && svgAfter;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -243,6 +266,7 @@ app.whenReady().then(async () => {
         recentOk,
         titlebarOk,
         marpExportOk,
+        reHydrateOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -286,6 +310,7 @@ app.whenReady().then(async () => {
     if (!result.recentOk) fail('최근 vault 리스트 실패');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
+    if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
   } catch (e) {
     fail(String(e));
   }
