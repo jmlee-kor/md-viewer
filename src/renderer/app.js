@@ -123,6 +123,35 @@ class MdvApp extends LitElement {
       color: var(--muted, #9aa0a6);
       font-size: 0.78rem;
     }
+    .menu-sep {
+      height: 1px;
+      background: #3a3d41;
+      margin: 0.15rem 0;
+    }
+    .menu-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .iconbtn {
+      flex: 1 1 auto;
+      min-width: 34px;
+      background: #3a3d41;
+      color: var(--fg, #d4d4d4);
+      border: 1px solid #4a4d51;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .iconbtn:hover {
+      background: #45494e;
+    }
+    .iconbtn.danger:hover {
+      background: #a33636;
+      border-color: #a33636;
+      color: #fff;
+    }
     .body {
       flex: 1 1 auto;
       min-height: 0;
@@ -445,6 +474,11 @@ class MdvApp extends LitElement {
     return this._index?.titles?.[relPath] || relPath.replace(/\.md$/i, '');
   }
 
+  /** 창/보기 액션 (제거한 네이티브 메뉴 대체) */
+  _appAction(name) {
+    window.mdv.appAction(name);
+  }
+
   render() {
     return html`
       <div class="body">
@@ -505,6 +539,20 @@ class MdvApp extends LitElement {
               )}
             </select>
           </label>
+          <div class="menu-sep"></div>
+          <div class="menu-actions" role="group" aria-label="보기">
+            <button class="iconbtn" data-action title="축소" @click=${() => this._appAction('zoomOut')}>A−</button>
+            <button class="iconbtn" data-action title="기본 배율" @click=${() => this._appAction('zoomReset')}>100%</button>
+            <button class="iconbtn" data-action title="확대" @click=${() => this._appAction('zoomIn')}>A+</button>
+            <button class="iconbtn" data-action title="전체화면" @click=${() => this._appAction('fullscreen')}>⛶</button>
+            <button class="iconbtn" data-action title="새로고침" @click=${() => this._appAction('reload')}>↻</button>
+            <button class="iconbtn" data-action title="개발자 도구" @click=${() => this._appAction('devtools')}>{ }</button>
+          </div>
+          <div class="menu-actions" role="group" aria-label="창">
+            <button class="iconbtn" data-action title="최소화" @click=${() => this._appAction('minimize')}>—</button>
+            <button class="iconbtn" data-action title="닫기" @click=${() => this._appAction('close')}>✕</button>
+            <button class="iconbtn danger" data-action title="종료" @click=${() => this._appAction('quit')}>⏻</button>
+          </div>
         </div>
       </div>
     `;

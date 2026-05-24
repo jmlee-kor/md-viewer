@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('mdv', {
   readNote: (relPath) => ipcRenderer.invoke('note:read', relPath),
   /** PlantUML 원문 → { ok, svg } | { ok:false, error } */
   renderPlantUML: (src) => ipcRenderer.invoke('plantuml:render', src),
+  /** 창/보기 액션 (reload/devtools/zoomIn/zoomOut/zoomReset/fullscreen/minimize/close/quit) */
+  appAction: (name) => ipcRenderer.invoke('app:action', name),
   /** vault 파일 변경 구독 → { root, tree, index }. 해제 함수 반환 */
   onVaultChanged: (cb) => {
     const listener = (_e, data) => cb(data);

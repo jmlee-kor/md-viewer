@@ -3,7 +3,7 @@
 // Electron main process.
 // 책임: 윈도우 + 보안 기본값 + vault IPC + 링크 인덱스 + 파일 감시(fs.watch, 의존성 0).
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const vault = require('./vault');
@@ -15,6 +15,9 @@ const resProtocol = require('./res-protocol');
 // build.appId 와 동일하게 맞춰 핀 고정·아이콘이 md-viewer 로 안정화.
 const APP_ID = 'com.local.md-viewer';
 if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
+
+// 네이티브 앱 메뉴바(File/Edit/View/Window) 제거 — 기능은 좌하단 플로팅 메뉴로 흡수.
+Menu.setApplicationMenu(null);
 
 // privileged scheme 등록은 app ready 이전이어야 함
 resProtocol.registerPrivileged();
@@ -110,6 +113,26 @@ ipcMain.handle('note:read', async (_e, relPath) => {
 
 // --- IPC: PlantUML 렌더 (java -jar plantuml.jar -pipe) ---
 ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));
+
+// --- IPC: 창/보기 액션 (제거한 네이티브 메뉴 대체) ---
+const ZOOM_STEP = 0.5;
+const ZOOM_MIN = -3;
+const ZOOM_MAX = 5;
+ipcMain.handle('app:action', (e, name) => {
+  const wc = e.sender;
+  const win = BrowserWindow.fromWebContents(wc);
+  switch (name) {
+    case 'reload': wc.reload(); break;
+    case 'devtools': wc.toggleDevTools(); break;
+    case 'zoomIn': wc.setZoomLevel(Math.min(ZOOM_MAX, wc.getZoomLevel() + ZOOM_STEP)); break;
+    case 'zoomOut': wc.setZoomLevel(Math.max(ZOOM_MIN, wc.getZoomLevel() - ZOOM_STEP)); break;
+    case 'zoomReset': wc.setZoomLevel(0); break;
+    case 'fullscreen': win?.setFullScreen(!win.isFullScreen()); break;
+    case 'minimize': win?.minimize(); break;
+    case 'close': win?.close(); break;
+    case 'quit': app.quit(); break;
+  }
+});
 
 app.whenReady().then(() => {
   resProtocol.handle(() => currentVaultRoot);
