@@ -190,6 +190,11 @@ app.whenReady().then(async () => {
       const recentName = appEl.shadowRoot.querySelector('.recent-open')?.textContent.trim();
       const recentOk = recentApi && recentItems === 2 && recentName === 'MyVault';
 
+      // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API
+      const titlebar = appEl.shadowRoot.querySelector('.titlebar');
+      const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
+      const titlebarOk = !!titlebar && tbBtns === 3 && typeof window.mdv.onMaximizeChange === 'function';
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -226,6 +231,7 @@ app.whenReady().then(async () => {
         actionBtnCount,
         rawOk,
         recentOk,
+        titlebarOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -267,6 +273,7 @@ app.whenReady().then(async () => {
     if (!result.menuActionsOk) fail(`창/보기 액션 메뉴 실패 (appAction API/버튼수=${result.actionBtnCount})`);
     if (!result.rawOk) fail('md 원본(raw) 보기 렌더 실패');
     if (!result.recentOk) fail('최근 vault 리스트 실패');
+    if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
   } catch (e) {
     fail(String(e));
   }

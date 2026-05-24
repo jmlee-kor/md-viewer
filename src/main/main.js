@@ -41,6 +41,7 @@ function createWindow() {
     height: 800,
     backgroundColor: '#1e1e1e',
     show: false,
+    frame: false, // 커스텀 타이틀바 (드래그 영역 + min/max/close 는 렌더러에서)
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
       contextIsolation: true,
@@ -55,6 +56,11 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // 최대화 상태를 렌더러에 통지 (타이틀바 아이콘 토글용)
+  const sendMax = () => mainWindow?.webContents.send('window:maximized', mainWindow.isMaximized());
+  mainWindow.on('maximize', sendMax);
+  mainWindow.on('unmaximize', sendMax);
 }
 
 /** vault 스캔 + 인덱스 구축 → 렌더러로 보낼 payload */
@@ -136,6 +142,7 @@ ipcMain.handle('app:action', (e, name) => {
     case 'zoomOut': wc.setZoomLevel(Math.max(ZOOM_MIN, wc.getZoomLevel() - ZOOM_STEP)); break;
     case 'zoomReset': wc.setZoomLevel(0); break;
     case 'fullscreen': win?.setFullScreen(!win.isFullScreen()); break;
+    case 'maximize': if (win) win.isMaximized() ? win.unmaximize() : win.maximize(); break;
     case 'minimize': win?.minimize(); break;
     case 'close': win?.close(); break;
     case 'quit': app.quit(); break;

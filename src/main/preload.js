@@ -17,8 +17,14 @@ contextBridge.exposeInMainWorld('mdv', {
   readNote: (relPath) => ipcRenderer.invoke('note:read', relPath),
   /** PlantUML 원문 → { ok, svg } | { ok:false, error } */
   renderPlantUML: (src) => ipcRenderer.invoke('plantuml:render', src),
-  /** 창/보기 액션 (reload/devtools/zoomIn/zoomOut/zoomReset/fullscreen/minimize/close/quit) */
+  /** 창/보기 액션 (reload, devtools, zoom in·out·reset, fullscreen, maximize, minimize, close, quit) */
   appAction: (name) => ipcRenderer.invoke('app:action', name),
+  /** 최대화 상태 변경 구독 → boolean. 해제 함수 반환 */
+  onMaximizeChange: (cb) => {
+    const listener = (_e, isMax) => cb(isMax);
+    ipcRenderer.on('window:maximized', listener);
+    return () => ipcRenderer.removeListener('window:maximized', listener);
+  },
   /** vault 파일 변경 구독 → { root, tree, index }. 해제 함수 반환 */
   onVaultChanged: (cb) => {
     const listener = (_e, data) => cb(data);

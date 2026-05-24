@@ -26,6 +26,7 @@ class MdvApp extends LitElement {
     _menuOpen: { state: true },
     _rawView: { state: true },
     _recent: { state: true },
+    _maximized: { state: true },
   };
 
   static styles = [
@@ -37,6 +38,47 @@ class MdvApp extends LitElement {
       height: 100%;
       position: relative;
       color: var(--fg, #d4d4d4);
+    }
+    /* 커스텀 타이틀바 (frameless) */
+    .titlebar {
+      flex: 0 0 auto;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #2d2f33;
+      border-bottom: 1px solid #333;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .tb-title {
+      padding-left: 10px;
+      font-size: 0.78rem;
+      color: var(--muted, #9aa0a6);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tb-controls {
+      display: flex;
+      height: 100%;
+      -webkit-app-region: no-drag;
+    }
+    .tb-btn {
+      width: 42px;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--fg, #d4d4d4);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .tb-btn:hover {
+      background: #3a3d41;
+    }
+    .tb-close:hover {
+      background: #c4302b;
+      color: #fff;
     }
     /* 좌하단 플로팅 메뉴 */
     .menu {
@@ -221,7 +263,8 @@ class MdvApp extends LitElement {
       overflow: auto;
       min-height: 0;
       min-width: 0;
-      padding: 0.6rem;
+      /* 하단 padding 으로 좌하단 플로팅 ☰ 버튼에 마지막 트리 항목이 가리지 않게 */
+      padding: 0.6rem 0.6rem 64px;
       border-right: 1px solid #333;
       background: #1e1e1e;
     }
@@ -456,11 +499,17 @@ class MdvApp extends LitElement {
     super.connectedCallback();
     // 파일 변경 라이브 갱신
     this._unsub = window.mdv.onVaultChanged((data) => this._applyVault(data, true));
+    this._unsubMax = window.mdv.onMaximizeChange((isMax) => (this._maximized = isMax));
+    // 다이얼로그/창 전환 등으로 포커스 잃으면 플로팅 메뉴 닫기
+    this._onBlur = () => (this._menuOpen = false);
+    window.addEventListener('blur', this._onBlur);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._unsub?.();
+    this._unsubMax?.();
+    window.removeEventListener('blur', this._onBlur);
   }
 
   _applyVault(data, keepSelection) {
@@ -479,6 +528,7 @@ class MdvApp extends LitElement {
 
   async _openVault() {
     this._error = null;
+    this._menuOpen = false;
     try {
       const res = await window.mdv.openVault();
       if (!res) return;
@@ -626,6 +676,7 @@ class MdvApp extends LitElement {
   /** 창/보기 액션 (제거한 네이티브 메뉴 대체) */
   _appAction(name) {
     window.mdv.appAction(name);
+    this._menuOpen = false;
   }
 
   _toggleRaw() {
@@ -642,8 +693,28 @@ ${lines.map(
     >`;
   }
 
+  _renderTitlebar() {
+    return html`
+      <div class="titlebar">
+        <span class="tb-title">md-viewer${this._selected ? ` — ${this._titleOf(this._selected)}` : ''}</span>
+        <div class="tb-controls">
+          <button class="tb-btn" title="최소화" @click=${() => this._appAction('minimize')}>—</button>
+          <button
+            class="tb-btn"
+            title=${this._maximized ? '이전 크기로' : '최대화'}
+            @click=${() => this._appAction('maximize')}
+          >
+            ${this._maximized ? '❐' : '▢'}
+          </button>
+          <button class="tb-btn tb-close" title="닫기" @click=${() => this._appAction('close')}>✕</button>
+        </div>
+      </div>
+    `;
+  }
+
   render() {
     return html`
+      ${this._renderTitlebar()}
       <div class="body">
         <aside class="sidebar">
           ${this._tree.length
