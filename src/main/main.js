@@ -263,6 +263,20 @@ ipcMain.handle('marp:export', async (e, { format, html, css, title }) => {
   return { ok: false, error: `미지원 포맷: ${format}` };
 });
 
+// --- IPC: 다이어그램 export (PNG bytes / SVG 문자열) ---
+ipcMain.handle('diagram:export', async (e, { format, data, name }) => {
+  const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+  const base = (name || 'diagram').replace(/[\\/:*?"<>|]/g, '_');
+  const res = await dialog.showSaveDialog(win, {
+    defaultPath: `${base}.${format}`,
+    filters: [{ name: format.toUpperCase(), extensions: [format] }],
+  });
+  if (res.canceled || !res.filePath) return { canceled: true };
+  if (format === 'svg') fs.writeFileSync(res.filePath, String(data), 'utf8');
+  else fs.writeFileSync(res.filePath, Buffer.from(data)); // png: Uint8Array(ArrayBuffer)
+  return { ok: true, path: res.filePath };
+});
+
 // --- IPC: 창/보기 액션 (제거한 네이티브 메뉴 대체) ---
 const ZOOM_STEP = 0.5;
 const ZOOM_MIN = -3;

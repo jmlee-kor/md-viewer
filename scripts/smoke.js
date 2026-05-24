@@ -430,6 +430,26 @@ app.whenReady().then(async () => {
       await deckEl.updateComplete;
       const marpFsOk = fsBtn && keyGuardOk && fsControlsOk;
 
+      // 다이어그램 zoom/pan 라이트박스: 클릭 오픈 + 휠 줌 + export API + 닫기
+      const dWrap = document.createElement('div');
+      dWrap.className = 'mdv-diagram';
+      const innerSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      innerSvg.setAttribute('width', '1280');
+      innerSvg.setAttribute('height', '720');
+      dWrap.appendChild(innerSvg);
+      appEl._onNoteClick({ target: innerSvg, preventDefault() {} }); // 다이어그램 클릭 경로
+      await appEl.updateComplete;
+      const lbEl = appEl.shadowRoot.querySelector('.lb-overlay');
+      const lbHasSvg = !!appEl.shadowRoot.querySelector('.lb-content svg');
+      const scaleBefore = appEl._lb.scale;
+      appEl._lbWheel({ deltaY: -100, clientX: 100, clientY: 100, preventDefault() {} });
+      const zoomChanged = appEl._lb.scale !== scaleBefore;
+      const exportApiOk = typeof window.mdv.exportDiagram === 'function';
+      appEl._closeLightbox();
+      await appEl.updateComplete;
+      const lbClosed = !appEl.shadowRoot.querySelector('.lb-overlay');
+      const lightboxOk = !!lbEl && lbHasSvg && zoomChanged && exportApiOk && lbClosed;
+
       // 다이어그램 메모이즈: 같은 소스 두 번째 hydrate 는 캐시 히트로 svg 즉시
       const mk1 = document.createElement('div');
       mk1.innerHTML = window.__mdvTest.renderMarkdown('~~~mermaid\\ngraph TD\\n  X-->Y\\n~~~');
@@ -514,6 +534,7 @@ app.whenReady().then(async () => {
         titlebarOk,
         marpExportOk,
         marpFsOk,
+        lightboxOk,
         reHydrateOk,
         viewBarOk,
         memoizeOk,
@@ -572,6 +593,7 @@ app.whenReady().then(async () => {
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.marpFsOk) fail('Marp 전체화면 재생 실패 (재생버튼/키가드/fs컨트롤)');
+    if (!result.lightboxOk) fail('다이어그램 라이트박스 실패 (오픈/줌/export API/닫기)');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
     if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');

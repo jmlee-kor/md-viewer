@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('mdv', {
   renderPlantUML: (src) => ipcRenderer.invoke('plantuml:render', src),
   /** Marp export: format(pdf|html) + {html, css, title} → { ok, path } | { canceled } */
   exportMarp: (payload) => ipcRenderer.invoke('marp:export', payload),
+  /** 다이어그램 export: { format(png|svg), data(Uint8Array|string), name } → { ok, path } | { canceled } */
+  exportDiagram: (payload) => ipcRenderer.invoke('diagram:export', payload),
   /** 창/보기 액션 (reload, devtools, zoom in·out·reset, fullscreen, maximize, minimize, close, quit) */
   appAction: (name) => ipcRenderer.invoke('app:action', name),
   /** 최대화 상태 변경 구독 → boolean. 해제 함수 반환 */

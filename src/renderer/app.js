@@ -36,6 +36,8 @@ class MdvApp extends LitElement {
     _paletteOpen: { state: true },
     _paletteQuery: { state: true },
     _paletteIdx: { state: true },
+    _lightboxOpen: { state: true },
+    _lightboxSvg: { state: true },
   };
 
   static styles = [
@@ -563,6 +565,58 @@ class MdvApp extends LitElement {
       font-size: 0.85rem;
       padding: 0.8rem 0.9rem;
     }
+    /* 다이어그램 클릭 → zoom/pan 라이트박스 */
+    .note .mdv-diagram svg {
+      cursor: zoom-in;
+    }
+    .lb-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+    }
+    .lb-bar {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      padding: 0.5rem 0.8rem;
+    }
+    .lb-bar button {
+      background: #2d2f33;
+      color: #fff;
+      border: 1px solid #4a4d51;
+      border-radius: 5px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .lb-bar button:hover {
+      background: var(--accent, #569cd6);
+    }
+    .lb-stage {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+    }
+    .lb-stage:active {
+      cursor: grabbing;
+    }
+    .lb-content {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      background: #fff;
+      border-radius: 4px;
+    }
+    .lb-content svg {
+      display: block;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -798,6 +852,10 @@ class MdvApp extends LitElement {
     this._paletteOpen = false; // Ctrl+P 빠른 전환기
     this._paletteQuery = '';
     this._paletteIdx = 0;
+    this._lightboxOpen = false; // 다이어그램 zoom/pan 라이트박스
+    this._lightboxSvg = '';
+    this._lightboxName = 'diagram';
+    this._lb = { scale: 1, x: 0, y: 0 }; // 라이트박스 변환 (비반응)
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -822,6 +880,9 @@ class MdvApp extends LitElement {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
         this._openPalette();
+      } else if (e.key === 'Escape' && this._lightboxOpen) {
+        e.preventDefault();
+        this._closeLightbox();
       }
     };
     window.addEventListener('keydown', this._onKeydown);
@@ -1060,6 +1121,107 @@ class MdvApp extends LitElement {
     }
   }
 
+  // --- 다이어그램 zoom/pan 라이트박스 ---
+  _openLightbox(svgEl) {
+    this._lightboxSvg = new XMLSerializer().serializeToString(svgEl);
+    this._lightboxName = this._selected ? this._titleOf(this._selected) : 'diagram';
+    this._lb = { scale: 1, x: 0, y: 0 };
+    this._lightboxOpen = true;
+  }
+
+  _closeLightbox() {
+    this._lightboxOpen = false;
+    this._lightboxSvg = '';
+  }
+
+  _applyLbTransform() {
+    const c = this.renderRoot.querySelector('.lb-content');
+    if (c) c.style.transform = `translate(${this._lb.x}px, ${this._lb.y}px) scale(${this._lb.scale})`;
+  }
+
+  /** 라이트박스 열릴 때 스테이지에 맞춰 초기 fit + 중앙 정렬 */
+  _fitLightbox() {
+    const stage = this.renderRoot.querySelector('.lb-stage');
+    const svg = this.renderRoot.querySelector('.lb-content svg');
+    if (!stage || !svg) return;
+    const sw = svg.getBoundingClientRect().width / (this._lb.scale || 1) || 1280;
+    const sh = svg.getBoundingClientRect().height / (this._lb.scale || 1) || 720;
+    const scale = Math.min((stage.clientWidth - 40) / sw, (stage.clientHeight - 40) / sh, 1);
+    this._lb = {
+      scale: scale > 0 ? scale : 1,
+      x: (stage.clientWidth - sw * scale) / 2,
+      y: (stage.clientHeight - sh * scale) / 2,
+    };
+    this._applyLbTransform();
+  }
+
+  _lbWheel(e) {
+    e.preventDefault();
+    const stage = this.renderRoot.querySelector('.lb-stage');
+    if (!stage) return;
+    const r = stage.getBoundingClientRect();
+    const cx = e.clientX - r.left;
+    const cy = e.clientY - r.top;
+    const ns = Math.min(8, Math.max(0.1, this._lb.scale * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+    this._lb.x = cx - (ns / this._lb.scale) * (cx - this._lb.x); // 커서 지점 고정
+    this._lb.y = cy - (ns / this._lb.scale) * (cy - this._lb.y);
+    this._lb.scale = ns;
+    this._applyLbTransform();
+  }
+
+  _lbDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const ox = this._lb.x;
+    const oy = this._lb.y;
+    const move = (ev) => {
+      this._lb.x = ox + (ev.clientX - sx);
+      this._lb.y = oy + (ev.clientY - sy);
+      this._applyLbTransform();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  _exportDiagramSvg() {
+    window.mdv.exportDiagram({ format: 'svg', data: this._lightboxSvg, name: this._lightboxName });
+  }
+
+  async _exportDiagramPng() {
+    // SVG 문자열 → data: URL(CSP img-src 'self' data: 허용, blob: 불가) → canvas 래스터 → PNG bytes
+    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(this._lightboxSvg);
+    const img = new Image();
+    try {
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = dataUrl;
+      });
+    } catch {
+      return;
+    }
+    const w = img.naturalWidth || 1280;
+    const h = img.naturalHeight || 720;
+    const k = 2; // 고해상도 (2x)
+    const canvas = document.createElement('canvas');
+    canvas.width = w * k;
+    canvas.height = h * k;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; // 투명 배경 → 흰색 (PNG 가독성)
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    if (!blob) return;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    window.mdv.exportDiagram({ format: 'png', data: bytes, name: this._lightboxName });
+  }
+
   async _onSelect(relPath, searchTerms = null, heading = null) {
     const sameNote = this._selected === relPath && !this._marpSrc && !this._rawView;
     this._selected = relPath;
@@ -1200,6 +1362,10 @@ class MdvApp extends LitElement {
     if (changed.has('_paletteIdx')) {
       this.renderRoot.querySelector('.palette-item.active')?.scrollIntoView({ block: 'nearest' });
     }
+    // 다이어그램 라이트박스: 열릴 때 스테이지에 맞춰 초기 fit
+    if (changed.has('_lightboxOpen') && this._lightboxOpen) {
+      this.updateComplete.then(() => this._fitLightbox());
+    }
   }
 
   /** 검색어를 노트 본문에서 <mark>로 하이라이트하고 첫 매치로 스크롤.
@@ -1316,6 +1482,16 @@ class MdvApp extends LitElement {
   }
 
   _onNoteClick(e) {
+    // 다이어그램 클릭 → zoom/pan 라이트박스 (위키링크보다 먼저 — 다이어그램 안 링크 없음)
+    const diag = e.target.closest?.('.mdv-diagram');
+    if (diag) {
+      const svg = diag.querySelector('svg');
+      if (svg) {
+        e.preventDefault();
+        this._openLightbox(svg);
+        return;
+      }
+    }
     const a = e.target.closest?.('a.wikilink');
     if (!a) return;
     e.preventDefault();
@@ -1465,6 +1641,29 @@ ${lines.map(
       </div>
       ${this._renderMenu()}
       ${this._paletteOpen ? this._renderPalette() : ''}
+      ${this._lightboxOpen ? this._renderLightbox() : ''}
+    `;
+  }
+
+  /** 다이어그램 zoom/pan 라이트박스 오버레이 */
+  _renderLightbox() {
+    return html`
+      <div class="lb-overlay" @click=${this._closeLightbox}>
+        <div class="lb-bar" @click=${(e) => e.stopPropagation()}>
+          <button title="PNG로 내보내기" @click=${this._exportDiagramPng}>PNG</button>
+          <button title="SVG로 내보내기" @click=${this._exportDiagramSvg}>SVG</button>
+          <button title="맞춤(리셋)" @click=${() => this._fitLightbox()}>⤢</button>
+          <button title="닫기 (Esc)" @click=${this._closeLightbox}>✕</button>
+        </div>
+        <div
+          class="lb-stage"
+          @click=${(e) => e.stopPropagation()}
+          @wheel=${this._lbWheel}
+          @pointerdown=${this._lbDown}
+        >
+          <div class="lb-content">${unsafeHTML(this._lightboxSvg)}</div>
+        </div>
+      </div>
     `;
   }
 
