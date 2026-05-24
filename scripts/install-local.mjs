@@ -42,4 +42,4 @@ if (process.platform === 'win32') {
   console.log(`PATH 에 추가하세요: ${dest}`);
 }
 
-console.log('PlantUML 사용 시 tools/ (jre, plantuml.jar) 를 이 폴더에 두세요.');
+console.log('PlantUML 은 번들된 tools(JRE+jar)로 자동 동작합니다 (설정 불필요).');

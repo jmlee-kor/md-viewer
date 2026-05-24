@@ -13,7 +13,8 @@
     "test:unit": "node scripts/test-vault.cjs && node scripts/test-index.cjs",
     "smoke": "electron scripts/smoke.js",
     "make:icon": "electron scripts/make-icon.js",
-    "dist": "electron-builder --win --dir",
+    "tools:fetch": "node scripts/fetch-tools.mjs",
+    "dist": "npm run tools:fetch && electron-builder --win --dir",
     "install:local": "npm run dist && node scripts/install-local.mjs"
   },
   "build": {
@@ -31,7 +32,14 @@
     "win": {
       "target": "dir",
       "icon": "assets/icon.ico"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "tools",
+        "to": "tools",
+        "filter": ["**/*", "!README.md"]
+      }
+    ]
   },
   "license": "MIT",
   "devDependencies": {
