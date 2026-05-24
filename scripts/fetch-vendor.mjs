@@ -1,0 +1,59 @@
+// 외부 인터넷 PC에서 실행 → npm 으로 못 받는 vendor 자산을 내려받는다.
+// (npm 패키지는 bundle-vendor.mjs 가 처리. 여기는 그 외 직접 다운로드 자산 전용)
+//
+//   npm run vendor:fetch
+//
+// 결과물(vendor/drawio-viewer.min.js 등)은 git 에 커밋되어 폐쇄망은 pull 로만 받는다.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import https from 'node:https';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const vendorDir = path.join(root, 'vendor');
+
+// 직접 다운로드 대상. drawio 뷰어는 npm 배포본이 깔끔치 않아 공식 viewer 빌드를 받는다.
+const ASSETS = [
+  {
+    out: 'drawio-viewer.min.js',
+    url: 'https://viewer.diagrams.net/js/viewer.min.js',
+    note: 'draw.io GraphViewer (mxGraph). rolling build — 고정이 필요하면 태그된 릴리스 URL 로 교체.',
+  },
+];
+
+function download(url, dest, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('redirect 과다'));
+    https
+      .get(url, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          const next = new URL(res.headers.location, url).toString();
+          return resolve(download(next, dest, redirects + 1));
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`HTTP ${res.statusCode} — ${url}`));
+        }
+        const tmp = dest + '.tmp';
+        const file = fs.createWriteStream(tmp);
+        res.pipe(file);
+        file.on('finish', () => file.close(() => {
+          fs.renameSync(tmp, dest);
+          resolve(fs.statSync(dest).size);
+        }));
+        file.on('error', reject);
+      })
+      .on('error', reject);
+  });
+}
+
+fs.mkdirSync(vendorDir, { recursive: true });
+for (const a of ASSETS) {
+  const dest = path.join(vendorDir, a.out);
+  process.stdout.write(`fetching ${a.out} … `);
+  const size = await download(a.url, dest);
+  console.log(`${(size / 1024 / 1024).toFixed(1)} MB`);
+}
+console.log('vendor 자산 다운로드 완료 (이 파일들을 git 커밋하세요)');

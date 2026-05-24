@@ -5,7 +5,9 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
+    "vendor:fetch": "node scripts/fetch-vendor.mjs",
     "bundle:vendor": "node scripts/bundle-vendor.mjs",
+    "vendor": "npm run vendor:fetch && npm run bundle:vendor",
     "test:vault": "node scripts/test-vault.cjs",
     "test:index": "node scripts/test-index.cjs",
     "test:unit": "node scripts/test-vault.cjs && node scripts/test-index.cjs",

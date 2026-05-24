@@ -24,12 +24,12 @@ const ROOT = path.join(__dirname, '..', 'sample-vault');
   assert.equal(linkIndex.resolveTarget(index.resolve, 'Diagrams|별칭'.split('|')[0]), 'Diagrams.md', '별칭 분리 후 해석');
   assert.equal(linkIndex.resolveTarget(index.resolve, '없는노트'), null, '미해결 → null');
 
-  // 백링크: Welcome 은 Diagrams 와 Roadmap 양쪽에서 참조됨
+  // 백링크: Welcome 은 Diagrams · Roadmap · Slides 에서 참조됨
   const welcomeBack = (index.backlinks['Welcome.md'] || []).map((b) => b.from).sort();
   assert.deepEqual(
     welcomeBack,
-    ['Diagrams.md', 'Projects/Roadmap.md'],
-    'Welcome 백링크 = Diagrams + Roadmap'
+    ['Diagrams.md', 'Projects/Roadmap.md', 'Slides.md'],
+    'Welcome 백링크 = Diagrams + Roadmap + Slides'
   );
 
   // Diagrams 는 Welcome 에서 참조 (중복 링크는 1회로 dedup)

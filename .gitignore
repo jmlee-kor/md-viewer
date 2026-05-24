@@ -5,6 +5,8 @@ out/
 
 # Electron prebuilt 캐시 (Chromium) — 수동 반입 대상이라 repo 에 넣지 않음
 .electron-cache/
+# 폐쇄망에 수동 반입하는 Electron prebuilt 압축 해제 위치
+electron/
 
 # OS / 에디터
 Thumbs.db
