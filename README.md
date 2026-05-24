@@ -11,14 +11,33 @@
 
 ## 기능
 
+**코어**
 - vault 폴더 트리 탐색 + Markdown 렌더링 (markdown-it + DOMPurify)
 - 위키링크 `[[노트]]` / `[[노트|별칭]]` / `[[노트#헤딩]]` (Obsidian 호환) + 백링크 패널
-- 전문(full-text) 검색 — 사이드바 검색 + 결과 패널(스니펫·하이라이트), 인덱스 본문 재사용
 - 파일 변경 라이브 갱신 (`fs.watch`, 의존성 0)
-- 다이어그램
-  - **Mermaid** · **draw.io**(보기 전용) · **D2**(WASM) — 렌더러에서 직접
-  - **PlantUML** — main process에서 `java -jar plantuml.jar` (JRE/Graphviz 반입 필요)
-- **Marp 슬라이드 모드** — frontmatter `marp: true` 노트를 슬라이드 덱으로
+- 로컬 이미지 (`mdv-res://` 커스텀 프로토콜로 vault 상대경로 서빙)
+- GFM 체크박스 — 다단계 마커 `[ ]`/`[x]`/`[/]`/`[-]` (todo/done/doing/cancelled)
+
+**전문(full-text) 검색**
+- 사이드바 검색 + 결과 패널 (노트별 매치 횟수 배지, 스니펫 하이라이트)
+- 본문 검색어 하이라이트 + 매치 네비게이션 (상단 바 `‹ n/m ›`, Enter/Shift+Enter, 첫 매치 자동 스크롤)
+- main process 본문 인덱스 재사용 (in-memory, 렌더러로 본문 미전송)
+
+**다이어그램**
+- **Mermaid** · **draw.io**(보기 전용) · **D2**(WASM) — 렌더러에서 직접
+- **PlantUML** — main process에서 `java -jar plantuml.jar` (설치본은 자동 번들)
+- 렌더 결과 메모이즈 + 로딩 표시, mermaid 테마 선택
+
+**Marp 슬라이드 모드** — frontmatter `marp: true` 노트를 슬라이드 덱으로
+- 문서↔슬라이드 뷰 토글, export: **PDF · HTML · PNG · SVG** (오프라인)
+
+**UI / UX**
+- 커스텀 타이틀바(frameless, 최소화/최대화/닫기) + 좌하단 플로팅 메뉴(☰)
+- 콘텐츠 상단 토글 바 — 렌더 ↔ 원본(raw, 라인번호) / (Marp) 문서 ↔ 슬라이드
+- 노트 헤딩 접기/펼치기, 트리 depth 들여쓰기, 커스텀 스크롤바
+- 사이드바 너비 조절(드래그 splitter, 더블클릭 리셋) · Ctrl+휠 확대/축소
+- 최근 vault 리스트 + 시작 시 자동 열기
+- 코드/원본 보기 CJK 정렬 monospace 폰트(NanumGothicCoding 번들)
 
 ## 개발 (인터넷 되는 PC)
 
@@ -40,20 +59,23 @@ Electron prebuilt 반입 후 `run.cmd`. PlantUML 은 `tools/` 에 JRE/jar 반입
 
 ```
 src/main/         Electron main process
-  main.js           윈도우 + 보안 + vault IPC + 파일감시
+  main.js           윈도우 + 보안 + vault/검색/Marp export IPC + 창 액션 + 파일감시
   vault.js          재귀 .md 스캔 + path-traversal 방어 읽기
-  link-index.js     위키링크 해석 + 백링크 인덱스
-  plantuml.js       java -jar plantuml.jar -pipe IPC
+  link-index.js     위키링크 해석 + 백링크 인덱스 + 전문 검색(searchContent)
+  plantuml.js       java -jar plantuml.jar -pipe IPC (경로 해석/번들 탐지)
+  res-protocol.js   mdv-res:// 커스텀 프로토콜 (vault 로컬 이미지 서빙)
   preload.js        contextBridge 안전 API (window.mdv)
 src/renderer/     UI (Lit)
-  app.js            앱 셸 (툴바/사이드바/노트뷰/백링크)
+  app.js            앱 셸 (타이틀바/사이드바+검색/노트뷰/백링크/플로팅 메뉴)
   tree.js           폴더 트리
-  markdown.js       markdown-it + 위키링크 룰 + 다이어그램 fence 디스패처
-  marp.js / deck.js Marp 슬라이드
-  diagrams/         mermaid · drawio · d2 · plantuml 렌더러 + registry
-vendor/           오프라인 vendored 라이브러리 (git 커밋 대상)
-scripts/          vendor 생성(fetch/bundle) + 테스트 + 스모크
-tools/            PlantUML 반입 바이너리 위치 (README 만 커밋)
+  markdown.js       markdown-it + 위키링크 룰 + 다이어그램 fence + 체크박스 + 이미지 룰
+  marp.js / deck.js Marp 슬라이드 (렌더/덱 네비/export)
+  diagrams/         mermaid · drawio · d2 · plantuml 렌더러 + registry(새니타이즈/메모이즈)
+  settings.js       localStorage 설정 (최근 vault·mermaid 테마·사이드바 너비 등)
+  scrollbar-css.js  공유 스크롤바 스타일 · styles.css  document 스타일 + @font-face
+vendor/           오프라인 vendored 라이브러리 + fonts/ (git 커밋 대상, 약 19MB)
+scripts/          vendor 생성(fetch/bundle) + tools 자동반입 + 설치 + 테스트/스모크
+tools/            PlantUML 반입 바이너리 위치 (dev: 수동 / 설치본: 자동 번들)
 ```
 
 ## 보안 모델
@@ -69,20 +91,23 @@ tools/            PlantUML 반입 바이너리 위치 (README 만 커밋)
 - **인라인 핸들러 차단** — CSP `script-src` 에 `unsafe-inline` 없음 → SVG
   내 `onload=` 등 인라인 이벤트 핸들러가 실행되지 않음. (단 ELK 레이아웃을
   쓰는 D2 때문에 `unsafe-eval` 은 허용 — 위 격리/네트워크 차단으로 상쇄.)
-- **노트 본문 살균** — markdown-it 출력은 DOMPurify 통과(`markdown.js`).
-- **다이어그램 SVG 살균** (`diagrams/registry.js`) — 엔진별 신뢰 차등:
-  - **신뢰(면제)**: `mermaid`(securityLevel:strict 로 자체 살균) — 추가
-    살균 시 foreignObject htmlLabels 가 제거돼 라벨이 사라지므로 면제.
-  - **신뢰않음(살균)**: `d2`(WASM)·`plantuml`(java jar) 산출 SVG 문자열은
+- **노트 본문 새니타이즈** — markdown-it 출력은 DOMPurify 통과(`markdown.js`).
+- **다이어그램 SVG 새니타이즈** (`diagrams/registry.js`) — 엔진별 신뢰 차등:
+  - **신뢰(면제)**: `mermaid`(securityLevel:strict 로 자체 새니타이즈) — 추가
+    새니타이즈 시 foreignObject htmlLabels 가 제거돼 라벨이 사라지므로 면제.
+  - **신뢰않음(새니타이즈)**: `d2`(WASM)·`plantuml`(java jar) 산출 SVG 문자열은
     `el.innerHTML` 주입 전 DOMPurify 통과 → script/이벤트핸들러/`javascript:`
     링크 제거. 두 엔진은 `<text>` 기반이라 foreignObject 손실 없음(검증됨).
 - **잔여 리스크**: `draw.io`(GraphViewer)는 mxgraph XML 을 DOM 에 직접 렌더해
-  살균 경로를 거치지 않는다. 보기 전용 벤더 뷰어 + 위 CSP/격리로 완화하나,
-  신뢰않는 drawio 다이어그램은 표면이 남는다(향후 산출 서브트리 후살균 검토).
+  새니타이즈 경로를 거치지 않는다. 보기 전용 벤더 뷰어 + 위 CSP/격리로 완화하나,
+  신뢰않는 drawio 다이어그램은 표면이 남는다(향후 산출 서브트리 사후 새니타이즈 검토).
 
 ## 테스트
 
 ```bash
-npm run test:unit   # vault 스캔 + 링크 인덱스 (순수 node)
-npm run smoke       # Electron 헤드리스 — 렌더/위키링크/다이어그램 4종/Marp 통합
+npm run test:unit   # vault 스캔 + 링크 인덱스 + 전문 검색 (순수 node)
+npm run smoke       # Electron 헤드리스 통합 — 렌더/새니타이즈/위키링크/다이어그램 4종/Marp
+                    # export/전문 검색(하이라이트·네비)/UI(타이틀바·메뉴·splitter·줌·폰트)
 ```
+
+`npm test` 는 둘 다 실행. smoke 가 기능 회귀 게이트 역할을 한다(기능 추가 시 검증 항목 동반).

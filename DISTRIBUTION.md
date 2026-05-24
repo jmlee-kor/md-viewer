@@ -23,8 +23,9 @@ git add -A && git commit -m "vendor 갱신" && git push
 `npm run vendor` 가 만드는 것:
 - `vendor/lit.js · markdown-it.js · dompurify.js · mermaid.js · d2.js · marp.js` (esbuild 번들)
 - `vendor/drawio-viewer.min.js` (draw.io 공식 viewer 다운로드)
+- `vendor/fonts/NanumGothicCoding-Regular.ttf` (+ `OFL.txt`) — 코드/원본 보기 CJK 정렬 폰트
 
-이 파일들은 **git 에 커밋**됩니다(약 17MB). 폐쇄망은 이걸 pull 로만 받습니다.
+이 파일들은 **git 에 커밋**됩니다(약 19MB). 폐쇄망은 이걸 pull 로만 받습니다.
 
 ### Electron prebuilt 확보
 
