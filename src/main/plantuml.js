@@ -43,7 +43,11 @@ function resolveJar(cfg) {
 }
 
 function resolveDot(cfg) {
-  return process.env.MDV_GRAPHVIZ_DOT || cfg.graphvizDot || null;
+  if (process.env.MDV_GRAPHVIZ_DOT) return process.env.MDV_GRAPHVIZ_DOT;
+  if (cfg.graphvizDot) return cfg.graphvizDot;
+  const bundled = path.join(baseDir, 'tools', 'graphviz', 'bin', IS_WIN ? 'dot.exe' : 'dot');
+  if (fs.existsSync(bundled)) return bundled;
+  return null; // PlantUML 내장(시퀀스 등) 또는 PATH dot
 }
 
 /** @returns {Promise<{ok:true, svg:string} | {ok:false, error:string}>} */

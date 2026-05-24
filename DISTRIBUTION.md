@@ -96,13 +96,10 @@ npm run install:local  # 빌드 + %LOCALAPPDATA%\Programs\md-viewer 설치 + PAT
 
 ### 패키징 모드의 PlantUML (자동반입)
 
-`npm run dist` 는 빌드 전 `tools:fetch` 로 **JRE + plantuml.jar 를 자동 다운로드**해
-패키지에 번들합니다(`extraResources` → `resources/tools/`). 따라서 **설치본은
-설정 없이 PlantUML 이 동작**합니다. 패키징 모드의 tools 탐색 기준은
-`process.resourcesPath` 입니다.
-
-> Graphviz(클래스/상태 다이어그램용 dot)는 아직 자동반입 대상이 아닙니다.
-> 필요하면 `resources/tools/` 에 두거나 `MDV_GRAPHVIZ_DOT` 로 지정.
+`npm run dist` 는 빌드 전 `tools:fetch` 로 **JRE + plantuml.jar + Graphviz 를
+자동 다운로드**해 패키지에 번들합니다(`extraResources` → `resources/tools/`).
+따라서 **설치본은 설정 없이 PlantUML 전체(시퀀스 + 클래스/상태 등 dot 의존
+다이어그램)가 동작**합니다. 패키징 모드의 tools 탐색 기준은 `process.resourcesPath`.
 
 > 기본 권장은 여전히 위 git 방식입니다 — 업데이트가 `git pull` 한 번으로 끝나
 > 폐쇄망에 더 적합합니다. 패키징은 단독 배포가 필요할 때의 선택지입니다.

@@ -22,6 +22,24 @@ const JRE_FALLBACK =
   'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk';
 const JAR_URL =
   'https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml/1.2024.7/plantuml-1.2024.7.jar';
+const GRAPHVIZ_VERSION = '12.2.1';
+const GRAPHVIZ_URL =
+  `https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/${GRAPHVIZ_VERSION}/windows_10_cmake_Release_Graphviz-${GRAPHVIZ_VERSION}-win64.zip`;
+
+/** zip 다운로드 → Expand-Archive → 단일 최상위 폴더를 destDir 로 이동 */
+async function downloadAndExtract(urls, label, destDir, zipName) {
+  const zip = path.join(tools, zipName);
+  const sz = await downloadFirst(urls, zip);
+  console.log(`${label}: ${(sz / 1024 / 1024).toFixed(1)} MB, 압축 해제 …`);
+  const tmpDir = path.join(tools, '_tmp_' + label);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${tmpDir}' -Force`]);
+  const inner = fs.readdirSync(tmpDir)[0];
+  fs.rmSync(destDir, { recursive: true, force: true });
+  fs.renameSync(path.join(tmpDir, inner), destDir);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.rmSync(zip, { force: true });
+}
 
 function download(url, dest, redirects = 0) {
   return new Promise((resolve, reject) => {
@@ -84,6 +102,21 @@ if (fs.existsSync(javaExe)) {
   fs.rmSync(tmpDir, { recursive: true, force: true });
   fs.rmSync(zip, { force: true });
   console.log('JRE 준비 완료: tools/jre');
+}
+
+// 3) Graphviz (dot) — 클래스/상태/컴포넌트 등 dot 레이아웃 다이어그램용
+const dotExe = path.join(tools, 'graphviz', 'bin', 'dot.exe');
+if (fs.existsSync(dotExe)) {
+  console.log('Graphviz 이미 있음 — 건너뜀');
+} else {
+  process.stdout.write('Graphviz 다운로드 … ');
+  await downloadAndExtract([GRAPHVIZ_URL], 'graphviz', path.join(tools, 'graphviz'), '_gv.zip');
+  try {
+    execFileSync(dotExe, ['-c']); // 플러그인 등록 (config6 생성)
+    console.log('Graphviz 준비 완료 (dot -c 플러그인 등록)');
+  } catch (e) {
+    console.warn('dot -c 실패(첫 렌더 시 재시도될 수 있음):', e.message);
+  }
 }
 
 console.log('PlantUML 자동반입 도구 준비 완료. (electron-builder 가 tools/ 를 번들합니다)');
