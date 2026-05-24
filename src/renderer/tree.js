@@ -18,10 +18,15 @@ export class MdvTree extends LitElement {
     ul {
       list-style: none;
       margin: 0;
-      padding-left: 0.9rem;
-    }
-    :host > ul {
       padding-left: 0;
+    }
+    /* 중첩 트리 들여쓰기: 각 레벨은 별도 mdv-tree(shadow)라 ul 패딩이 누적되지 않음.
+       자식 mdv-tree 요소 자체에 들여쓰기 + 좌측 가이드라인을 줘 depth 를 표현. */
+    details > mdv-tree {
+      display: block;
+      padding-left: 0.8rem;
+      margin-left: 0.4rem;
+      border-left: 1px solid #333;
     }
     .file {
       cursor: pointer;

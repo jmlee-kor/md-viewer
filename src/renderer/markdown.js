@@ -141,6 +141,32 @@ function imageRewritePlugin(md) {
   };
 }
 
+// GFM 태스크리스트: 리스트 항목 첫 `[ ]`/`[x]` 를 읽기전용 체크박스로 치환.
+function taskListPlugin(md) {
+  md.core.ruler.after('inline', 'mdv-task-list', (state) => {
+    const tokens = state.tokens;
+    for (let i = 2; i < tokens.length; i++) {
+      if (tokens[i].type !== 'inline') continue;
+      if (tokens[i - 1].type !== 'paragraph_open') continue;
+      if (tokens[i - 2].type !== 'list_item_open') continue;
+      const inline = tokens[i];
+      const m = /^\[([ xX])\]\s+/.exec(inline.content);
+      if (!m) continue;
+      const checked = m[1].toLowerCase() === 'x';
+
+      tokens[i - 2].attrJoin('class', checked ? 'task-list-item task-done' : 'task-list-item');
+      inline.content = inline.content.slice(m[0].length);
+      const children = inline.children || [];
+      if (children[0] && children[0].type === 'text') {
+        children[0].content = children[0].content.replace(/^\[([ xX])\]\s+/, '');
+      }
+      const cb = new state.Token('html_inline', '', 0);
+      cb.content = `<input type="checkbox" class="task-checkbox" disabled${checked ? ' checked' : ''}> `;
+      children.unshift(cb);
+    }
+  });
+}
+
 const md = new MarkdownIt({
   html: true,
   linkify: true,
@@ -149,12 +175,13 @@ const md = new MarkdownIt({
 })
   .use(wikilinkPlugin)
   .use(diagramFencePlugin)
-  .use(imageRewritePlugin);
+  .use(imageRewritePlugin)
+  .use(taskListPlugin);
 
 const PURIFY_OPTS = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
   ADD_TAGS: ['use'],
-  ADD_ATTR: ['target', 'data-target', 'data-raw'],
+  ADD_ATTR: ['target', 'data-target', 'data-raw', 'type', 'checked', 'disabled'],
   // 기본 안전 스킴 + 커스텀 mdv-res (vault 이미지) 허용
   ALLOWED_URI_REGEXP:
     /^(?:(?:https?|mailto|tel|callto|cid|xmpp|data|mdv-res):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,

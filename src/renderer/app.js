@@ -205,6 +205,19 @@ class MdvApp extends LitElement {
     .note img {
       max-width: 100%;
     }
+    /* GFM 태스크리스트 체크박스 (읽기 전용) */
+    .note li.task-list-item {
+      list-style: none;
+    }
+    .note .task-checkbox {
+      margin: 0 0.45em 0 -1.4em;
+      vertical-align: middle;
+      cursor: default;
+    }
+    .note li.task-done {
+      color: var(--muted, #9aa0a6);
+      text-decoration: line-through;
+    }
     /* 다이어그램 */
     .note .mdv-diagram {
       margin: 1rem 0;

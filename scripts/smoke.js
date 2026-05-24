@@ -56,6 +56,10 @@ app.whenReady().then(async () => {
       const resolver = window.__mdvTest.makeResolver({ diagrams: 'Diagrams.md' });
       const wl = window.__mdvTest.renderMarkdown('[[Diagrams]] · [[없음]] · [[Diagrams|별칭]]', { resolveWikiLink: resolver });
 
+      // GFM 태스크리스트 체크박스
+      const tl = window.__mdvTest.renderMarkdown('- [ ] 할일\\n- [x] 완료');
+      const taskOk = /<input[^>]*type="checkbox"/.test(tl) && /checked/.test(tl) && /task-list-item/.test(tl) && /task-done/.test(tl);
+
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
       // Mermaid: ~~~ fence(백틱 회피) → placeholder → hydrate → svg
@@ -147,6 +151,14 @@ app.whenReady().then(async () => {
       const scrollIndependent = sb.scrollTop > 0 && ct.scrollTop === 0;
       const scrollOk = sbBounded && ctBounded && sbScrolls && ctScrolls && scrollIndependent;
 
+      // 파일 트리 depth 들여쓰기: 중첩 mdv-tree 가 좌측 들여쓰기를 가지는가
+      const t = document.createElement('mdv-tree');
+      t.nodes = [{ type: 'dir', name: 'F', relPath: 'F', children: [{ type: 'file', name: 'a.md', relPath: 'F/a.md' }] }];
+      document.body.appendChild(t);
+      await t.updateComplete;
+      const nestedTree = t.shadowRoot.querySelector('details > mdv-tree');
+      const treeIndent = !!nestedTree && parseFloat(getComputedStyle(nestedTree).paddingLeft) > 0;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -176,6 +188,8 @@ app.whenReady().then(async () => {
         imgRewritten,
         imgServed,
         scrollOk,
+        treeIndent,
+        taskOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -211,6 +225,8 @@ app.whenReady().then(async () => {
     if (!result.imgRewritten) fail('로컬 이미지 src → mdv-res 치환 실패');
     if (!result.imgServed) fail('mdv-res 프로토콜 이미지 서빙 실패');
     if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);
+    if (!result.treeIndent) fail('파일 트리 중첩 들여쓰기 실패');
+    if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
   } catch (e) {
     fail(String(e));
   }
