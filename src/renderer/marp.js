@@ -28,3 +28,12 @@ export function renderMarp(src) {
   });
   return { html: safeHtml, css };
 }
+
+// SVG export 용 별도 인스턴스: inlineSVG:true → 슬라이드가 <svg> 로 출력.
+let marpSvg = null;
+/** marp 원문 → { html, css } (각 슬라이드가 <svg data-marpit-svg>). SVG export 용. */
+export function renderMarpSvg(src) {
+  if (!marpSvg) marpSvg = new Marp({ inlineSVG: true });
+  const { html, css } = marpSvg.render(src || '');
+  return { html, css }; // 살균은 export 시 main 이 신뢰(자체 생성). 표시는 별도 renderMarp 경로 사용
+}

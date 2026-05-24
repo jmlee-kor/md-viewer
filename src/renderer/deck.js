@@ -1,6 +1,6 @@
 // Marp 슬라이드 덱 뷰어. src(원문) → 슬라이드들, 한 장씩 표시 + 이전/다음 네비게이션.
 import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
-import { renderMarp } from './marp.js';
+import { renderMarp, renderMarpSvg } from './marp.js';
 import { scrollbarCss } from './scrollbar-css.js';
 
 class MdvDeck extends LitElement {
@@ -163,7 +163,16 @@ class MdvDeck extends LitElement {
   }
 
   _export(format) {
-    window.mdv.exportMarp({ format, html: this._html, css: this._css, title: this._title() });
+    const payload = { format, title: this._title() };
+    if (format === 'svg') {
+      const r = renderMarpSvg(this.src); // inlineSVG 슬라이드
+      payload.html = r.html;
+      payload.css = r.css;
+    } else {
+      payload.html = this._html; // sections (pdf/html/png)
+      payload.css = this._css;
+    }
+    window.mdv.exportMarp(payload);
   }
 
   render() {
@@ -177,6 +186,8 @@ class MdvDeck extends LitElement {
         <button @click=${() => this._show(this._index + 1)} ?disabled=${this._index >= this._count - 1}>▶</button>
         <span class="nav-sep"></span>
         <button class="exp" data-export @click=${() => this._export('pdf')} title="PDF로 내보내기">PDF</button>
+        <button class="exp" data-export @click=${() => this._export('png')} title="슬라이드별 PNG">PNG</button>
+        <button class="exp" data-export @click=${() => this._export('svg')} title="슬라이드별 SVG">SVG</button>
         <button class="exp" data-export @click=${() => this._export('html')} title="HTML로 내보내기">HTML</button>
       </div>
     `;

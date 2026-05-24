@@ -204,7 +204,7 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 80));
       await deckEl.updateComplete;
       const exportBtns = deckEl.shadowRoot.querySelectorAll('[data-export]').length;
-      const marpExportOk = typeof window.mdv.exportMarp === 'function' && exportBtns === 2;
+      const marpExportOk = typeof window.mdv.exportMarp === 'function' && exportBtns === 4; // PDF/PNG/SVG/HTML
 
       // 다이어그램 메모이즈: 같은 소스 두 번째 hydrate 는 캐시 히트로 svg 즉시
       const mk1 = document.createElement('div');

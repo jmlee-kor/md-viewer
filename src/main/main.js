@@ -143,6 +143,45 @@ function buildMarpExportHtml(html, css) {
   );
 }
 
+// PNG(슬라이드별): 1280x720 offscreen 에서 각 슬라이드 스크롤+capturePage
+async function renderMarpPngs(html, css) {
+  const win = new BrowserWindow({
+    show: false,
+    width: 1280,
+    height: 720,
+    useContentSize: true,
+    webPreferences: { offscreen: true },
+  });
+  try {
+    const full =
+      '<!doctype html><html><head><meta charset="utf-8"><style>\n' +
+      css +
+      '\nhtml,body{margin:0;padding:0;overflow:hidden;}.marpit>section{width:1280px;height:720px;}' +
+      '\n</style></head><body>' + html + '</body></html>';
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(full));
+    await new Promise((r) => setTimeout(r, 350));
+    const count = await win.webContents.executeJavaScript(
+      'document.querySelectorAll(".marpit > section").length'
+    );
+    const pngs = [];
+    for (let i = 0; i < count; i++) {
+      await win.webContents.executeJavaScript(`window.scrollTo(0, ${i} * 720)`);
+      await new Promise((r) => setTimeout(r, 60));
+      const img = await win.webContents.capturePage({ x: 0, y: 0, width: 1280, height: 720 });
+      pngs.push(img.toPNG());
+    }
+    return pngs;
+  } finally {
+    win.destroy();
+  }
+}
+
+// SVG(슬라이드별): inlineSVG html 에서 <svg> 추출 + css 인라인(standalone)
+function splitMarpSvgs(svgHtml, css) {
+  const svgs = svgHtml.match(/<svg[\s\S]*?<\/svg>/g) || [];
+  return svgs.map((svg) => svg.replace(/(<svg[^>]*>)/, `$1<style>${css}</style>`));
+}
+
 async function renderMarpPdf(html, css) {
   const win = new BrowserWindow({
     show: false,
@@ -183,6 +222,27 @@ ipcMain.handle('marp:export', async (e, { format, html, css, title }) => {
     const pdf = await renderMarpPdf(html, css);
     fs.writeFileSync(res.filePath, pdf);
     return { ok: true, path: res.filePath };
+  }
+  if (format === 'png' || format === 'svg') {
+    // 슬라이드별 다중 파일 → 저장 위치(베이스 경로) 선택 후 <base>-N.<ext>
+    const res = await dialog.showSaveDialog(win, {
+      defaultPath: `${base}.${format}`,
+      filters: [{ name: format.toUpperCase(), extensions: [format] }],
+    });
+    if (res.canceled || !res.filePath) return { canceled: true };
+    const dir = path.dirname(res.filePath);
+    const stem = path.basename(res.filePath).replace(new RegExp(`\\.${format}$`, 'i'), '');
+    let n = 0;
+    if (format === 'png') {
+      const pngs = await renderMarpPngs(html, css);
+      pngs.forEach((buf, i) => fs.writeFileSync(path.join(dir, `${stem}-${i + 1}.png`), buf));
+      n = pngs.length;
+    } else {
+      const svgs = splitMarpSvgs(html, css);
+      svgs.forEach((svg, i) => fs.writeFileSync(path.join(dir, `${stem}-${i + 1}.svg`), svg, 'utf8'));
+      n = svgs.length;
+    }
+    return { ok: true, path: dir, count: n };
   }
   return { ok: false, error: `미지원 포맷: ${format}` };
 });
