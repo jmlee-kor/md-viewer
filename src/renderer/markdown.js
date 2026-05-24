@@ -93,6 +93,7 @@ function wikilinkPlugin(md) {
       open.attrSet('class', dest ? 'wikilink' : 'wikilink broken');
       open.attrSet('data-target', dest || '');
       open.attrSet('data-raw', target);
+      if (heading) open.attrSet('data-heading', heading); // [[note#heading]] 앵커 스크롤용
       open.attrSet('title', dest || `미해결: ${target}`);
 
       const txt = state.push('text', '', 0);
@@ -184,7 +185,7 @@ const md = new MarkdownIt({
 const PURIFY_OPTS = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
   ADD_TAGS: ['use'],
-  ADD_ATTR: ['target', 'data-target', 'data-raw', 'type', 'checked', 'disabled'],
+  ADD_ATTR: ['target', 'data-target', 'data-raw', 'data-heading', 'type', 'checked', 'disabled'],
   // 기본 안전 스킴 + 커스텀 mdv-res (vault 이미지) 허용
   ALLOWED_URI_REGEXP:
     /^(?:(?:https?|mailto|tel|callto|cid|xmpp|data|mdv-res):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,

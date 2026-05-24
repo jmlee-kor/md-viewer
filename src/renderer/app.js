@@ -707,6 +707,7 @@ class MdvApp extends LitElement {
     this._searchMatchIdx = -1;
     this._searchMatchTotal = 0;
     this._matchEls = []; // 현재 노트의 mark.search-hit 엘리먼트들 (비반응 캐시)
+    this._pendingHeading = null; // [[note#heading]] 클릭 시 렌더 후 스크롤할 헤딩
     this._sidebarWidth = getSetting('sidebarWidth', 280);
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
@@ -878,10 +879,12 @@ class MdvApp extends LitElement {
     this._onSelect(relPath, terms);
   }
 
-  async _onSelect(relPath, searchTerms = null) {
+  async _onSelect(relPath, searchTerms = null, heading = null) {
+    const sameNote = this._selected === relPath && !this._marpSrc && !this._rawView;
     this._selected = relPath;
     this._error = null;
     this._searchTerms = searchTerms || []; // 트리/위키링크/백링크 경로는 하이라이트 없음
+    this._pendingHeading = heading || null; // [[note#heading]] → 렌더 후 스크롤
     this._rawView = false; // 새 노트는 렌더 뷰 기본
     try {
       const src = await window.mdv.readNote(relPath);
@@ -898,12 +901,35 @@ class MdvApp extends LitElement {
         this._backlinks = (this._index?.backlinks?.[relPath]) || [];
         this._renderNoteHtml();
       }
+      // 같은 노트 + 헤딩이면 _noteHtml 이 안 바뀌어 updated() 게이트가 안 열리므로 직접 스크롤
+      if (sameNote && heading) {
+        await this.updateComplete;
+        const note = this.renderRoot.querySelector('.note');
+        if (note && this._scrollToHeading(note, heading)) this._pendingHeading = null;
+      }
     } catch (err) {
       this._error = String(err);
       this._noteHtml = '';
       this._marpSrc = null;
       this._backlinks = [];
     }
+  }
+
+  _normHeading(s) {
+    return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  /** 노트 내 텍스트가 일치하는 헤딩으로 스크롤 (대소문자/공백 정규화 매칭). */
+  _scrollToHeading(noteEl, heading) {
+    const want = this._normHeading(heading);
+    if (!want) return false;
+    for (const h of noteEl.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+      if (this._normHeading(h.textContent) === want) {
+        h.scrollIntoView({ block: 'start' });
+        return true;
+      }
+    }
+    return false;
   }
 
   updated(changed) {
@@ -916,6 +942,10 @@ class MdvApp extends LitElement {
         hydrateDiagrams(note); // placeholder dataset.hydrated 로 멱등
         this._setupHeadingFold(note); // heading dataset.mdvFold 로 멱등
         this._highlightSearch(note); // 검색어 본문 하이라이트(있으면) + 첫 매치 스크롤
+        if (this._pendingHeading) {
+          this._scrollToHeading(note, this._pendingHeading); // [[note#heading]] 앵커
+          this._pendingHeading = null;
+        }
       }
     }
   }
@@ -1038,7 +1068,8 @@ class MdvApp extends LitElement {
     if (!a) return;
     e.preventDefault();
     const target = a.getAttribute('data-target');
-    if (target) this._onSelect(target); // 해결된 링크만 이동
+    const heading = a.getAttribute('data-heading'); // [[note#heading]] → 헤딩 스크롤
+    if (target) this._onSelect(target, null, heading); // 해결된 링크만 이동
   }
 
   /** 현재 상태(일반 노트 / marp 평문)에 맞춰 _noteHtml 재계산. 덱 모드면 비움. */
