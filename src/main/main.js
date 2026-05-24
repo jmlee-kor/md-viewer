@@ -9,6 +9,10 @@ const path = require('node:path');
 const vault = require('./vault');
 const linkIndex = require('./link-index');
 const plantuml = require('./plantuml');
+const resProtocol = require('./res-protocol');
+
+// privileged scheme 등록은 app ready 이전이어야 함
+resProtocol.registerPrivileged();
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -96,6 +100,7 @@ ipcMain.handle('note:read', async (_e, relPath) => {
 ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));
 
 app.whenReady().then(() => {
+  resProtocol.handle(() => currentVaultRoot);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

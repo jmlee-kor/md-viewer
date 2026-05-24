@@ -18,7 +18,7 @@
     "@marp-team/marp-core": "^4.3.0",
     "@terrastruct/d2": "^0.1.33",
     "dompurify": "^3.4.5",
-    "electron": "^33.2.0",
+    "electron": "^42.2.0",
     "esbuild": "^0.28.0",
     "lit": "^3.3.3",
     "markdown-it": "^14.2.0",

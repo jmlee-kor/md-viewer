@@ -32,6 +32,22 @@ function parseWikiTarget(inner) {
   return { target: s.trim(), heading, alias };
 }
 
+/** 노트 상대 이미지 경로 → mdv-res:// URL (외부/절대/data 는 그대로) */
+function toResUrl(src, noteDir) {
+  if (!src) return null;
+  if (/^[a-z][a-z0-9+.\-]*:/i.test(src) || src.startsWith('//') || src.startsWith('#')) {
+    return null; // 이미 스킴 있음(http/data/mdv-res…) 또는 프로토콜-상대/앵커
+  }
+  const joined = noteDir ? `${noteDir}/${src}` : src;
+  const parts = [];
+  for (const seg of joined.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') parts.pop();
+    else parts.push(seg);
+  }
+  return 'mdv-res://vault/' + parts.map(encodeURIComponent).join('/');
+}
+
 /** resolve 맵 → (rawTarget) => relPath | null */
 export function makeResolver(resolveMap) {
   return (rawTarget) => {
@@ -111,6 +127,20 @@ function diagramFencePlugin(md) {
   };
 }
 
+// 이미지 src 가 vault 상대경로면 mdv-res:// 로 치환 (노트 위치 기준).
+function imageRewritePlugin(md) {
+  const defaultRender =
+    md.renderer.rules.image ||
+    ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+  md.renderer.rules.image = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    const src = token.attrGet('src');
+    const res = toResUrl(src, env && env.noteDir);
+    if (res) token.attrSet('src', res);
+    return defaultRender(tokens, idx, options, env, self);
+  };
+}
+
 const md = new MarkdownIt({
   html: true,
   linkify: true,
@@ -118,12 +148,16 @@ const md = new MarkdownIt({
   breaks: false,
 })
   .use(wikilinkPlugin)
-  .use(diagramFencePlugin);
+  .use(diagramFencePlugin)
+  .use(imageRewritePlugin);
 
 const PURIFY_OPTS = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
   ADD_TAGS: ['use'],
   ADD_ATTR: ['target', 'data-target', 'data-raw'],
+  // 기본 안전 스킴 + 커스텀 mdv-res (vault 이미지) 허용
+  ALLOWED_URI_REGEXP:
+    /^(?:(?:https?|mailto|tel|callto|cid|xmpp|data|mdv-res):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
 };
 
 /** @param env { resolveWikiLink?: (target)=>relPath|null } */

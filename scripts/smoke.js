@@ -7,9 +7,14 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
 const plantuml = require('../src/main/plantuml');
+const resProtocol = require('../src/main/res-protocol');
+
+const SAMPLE_VAULT = path.join(__dirname, '..', 'sample-vault');
 
 // 실제 main.js 와 동일하게 PlantUML IPC 핸들러 등록 (전체 경로 검증용)
 ipcMain.handle('plantuml:render', (_e, src) => plantuml.render(src));
+// mdv-res 프로토콜 (privileged 등록은 ready 이전)
+resProtocol.registerPrivileged();
 
 app.disableHardwareAcceleration();
 
@@ -20,6 +25,7 @@ const fail = (msg) => {
 };
 
 app.whenReady().then(async () => {
+  resProtocol.handle(() => SAMPLE_VAULT);
   const win = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -107,6 +113,18 @@ app.whenReady().then(async () => {
       const marpOut = window.__mdvTest.renderMarp(marpDoc);
       const marpSectionCount = (marpOut.html.match(/<section/g) || []).length;
       const marpHasCss = marpOut.css.length > 100;
+
+      // 로컬 이미지: 상대경로 → mdv-res 치환 + 프로토콜이 실제 파일 서빙
+      const imgHtml = window.__mdvTest.renderMarkdown('![x](assets/logo.svg)', { noteDir: '' });
+      const imgRewritten = imgHtml.includes('src="mdv-res://vault/assets/logo.svg"');
+      // 실제 앱과 동일하게 <img> 로드로 검증 (fetch 는 Electron 의 file:// CORS 로 막힘)
+      const imgServed = await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img.naturalWidth > 0);
+        img.onerror = () => resolve(false);
+        img.src = 'mdv-res://vault/assets/logo.svg';
+        setTimeout(() => resolve(false), 3000);
+      });
       const evilMarp = window.__mdvTest.renderMarp('---\\nmarp: true\\n---\\n\\n[x](javascript:alert(1))\\n\\n<script>alert(2)<\\/script>');
       // 실행 가능한 위협만 검사: <script> 태그 + javascript: href (단순 텍스트 아님)
       const marpNoScript = !/<script/.test(evilMarp.html);
@@ -139,6 +157,8 @@ app.whenReady().then(async () => {
         marpSectionCount,
         marpHasCss,
         marpSanitized,
+        imgRewritten,
+        imgServed,
       };
     })()`);
 
@@ -166,6 +186,8 @@ app.whenReady().then(async () => {
     if (result.marpSectionCount !== 2) fail(`Marp 슬라이드 수 이상: ${result.marpSectionCount} (기대 2)`);
     if (!result.marpHasCss) fail('Marp CSS 미생성');
     if (!result.marpSanitized) fail('Marp 살균 실패 — <script> 통과');
+    if (!result.imgRewritten) fail('로컬 이미지 src → mdv-res 치환 실패');
+    if (!result.imgServed) fail('mdv-res 프로토콜 이미지 서빙 실패');
   } catch (e) {
     fail(String(e));
   }

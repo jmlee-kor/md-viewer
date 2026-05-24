@@ -241,7 +241,8 @@ class MdvApp extends LitElement {
         this._backlinks = [];
       } else {
         this._marpSrc = null;
-        this._noteHtml = renderMarkdown(src, { resolveWikiLink: this._resolver });
+        const noteDir = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+        this._noteHtml = renderMarkdown(src, { resolveWikiLink: this._resolver, noteDir });
         this._backlinks = (this._index?.backlinks?.[relPath]) || [];
       }
     } catch (err) {
