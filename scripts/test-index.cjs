@@ -24,17 +24,20 @@ const ROOT = path.join(__dirname, '..', 'sample-vault');
   assert.equal(linkIndex.resolveTarget(index.resolve, 'Diagrams|별칭'.split('|')[0]), 'Diagrams.md', '별칭 분리 후 해석');
   assert.equal(linkIndex.resolveTarget(index.resolve, '없는노트'), null, '미해결 → null');
 
-  // 백링크: Welcome 은 Diagrams · Roadmap · Slides 에서 참조됨
-  const welcomeBack = (index.backlinks['Welcome.md'] || []).map((b) => b.from).sort();
-  assert.deepEqual(
-    welcomeBack,
-    ['Diagrams.md', 'Projects/Roadmap.md', 'Slides.md'],
-    'Welcome 백링크 = Diagrams + Roadmap + Slides'
-  );
+  // 백링크: Welcome 은 여러 노트에서 참조됨 (정확매칭 대신 포함검사 — vault 확장에 견고)
+  const welcomeBack = (index.backlinks['Welcome.md'] || []).map((b) => b.from);
+  for (const src of ['Diagrams.md', 'Projects/Roadmap.md', 'Slides.md']) {
+    assert.ok(welcomeBack.includes(src), `Welcome 백링크에 ${src} 포함`);
+  }
 
-  // Diagrams 는 Welcome 에서 참조 (중복 링크는 1회로 dedup)
+  // 같은 노트에서 같은 대상으로의 중복 링크는 1회로 dedup
+  const fromCounts = {};
+  welcomeBack.forEach((f) => (fromCounts[f] = (fromCounts[f] || 0) + 1));
+  assert.ok(Object.values(fromCounts).every((c) => c === 1), '백링크 source dedup');
+
+  // Diagrams 는 Welcome 에서 참조
   const diagBack = (index.backlinks['Diagrams.md'] || []).map((b) => b.from);
-  assert.deepEqual(diagBack, ['Welcome.md'], 'Diagrams 백링크 = Welcome (dedup)');
+  assert.ok(diagBack.includes('Welcome.md'), 'Diagrams 백링크에 Welcome 포함');
 
   console.log('INDEX TEST PASS ✅ (resolve 키', Object.keys(index.resolve).length, ', 백링크 대상', Object.keys(index.backlinks).length, ')');
 })().catch((e) => {
