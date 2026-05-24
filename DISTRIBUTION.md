@@ -79,16 +79,33 @@ Graphviz) 를 반입합니다. 자세히는 [`tools/README.md`](tools/README.md)
 
 ---
 
-## (선택) 단일 .exe 패키징
+## (선택) 실행파일 패키징 + 어디서든 실행
 
-`git pull + electron.exe` 대신 단일 실행파일로 배포하려면 메인테이너 PC에서
-`electron-builder` 로 포장할 수 있습니다.
+`git pull + electron.exe` 대신 독립 실행파일로 만들려면 `electron-builder` 로
+포장합니다. vendor/ 와 src/ 가 app.asar 에 포함됩니다.
 
 ```bash
-npm install --save-dev electron-builder
-npx electron-builder --win portable    # 또는 nsis 설치본
+npm run dist            # → dist/win-unpacked/md-viewer.exe (unpacked 폴더)
+npm run install:local   # 빌드 + %LOCALAPPDATA%\Programs\md-viewer 로 설치
 ```
 
-결과물(`dist/*.exe`)만 폐쇄망에 반입하면 됩니다. vendor/ 는 패키지에 포함되며,
-PlantUML tools 는 여전히 별도 반입입니다. (이 방식은 선택 — 기본 권장은 위 git
-방식이며, 업데이트가 `git pull` 한 번으로 끝나 폐쇄망에 더 적합합니다.)
+`install:local` 은 안정적 사용자 위치에 설치합니다. 그 폴더를 **사용자 PATH** 에
+한 번 추가하면 어디서든 `md-viewer` 로 실행됩니다 (PATH 등록은 최초 1회).
+
+```powershell
+$dest = "$env:LOCALAPPDATA\Programs\md-viewer"
+$cur = [Environment]::GetEnvironmentVariable('Path','User')
+if ($cur -notlike "*$dest*") {
+  [Environment]::SetEnvironmentVariable('Path', "$($cur.TrimEnd(';'));$dest", 'User')
+}
+# 새 터미널부터 적용
+```
+
+### 패키징 모드의 PlantUML tools
+
+패키징 시 PlantUML 의 `tools/` 탐색 기준은 **exe 가 있는 폴더**입니다(=설치 위치).
+JRE/plantuml.jar 를 `%LOCALAPPDATA%\Programs\md-viewer\tools\` 에 두거나
+환경변수(`MDV_PLANTUML_JAR` 등)로 지정하세요.
+
+> 기본 권장은 여전히 위 git 방식입니다 — 업데이트가 `git pull` 한 번으로 끝나
+> 폐쇄망에 더 적합합니다. 패키징은 단독 배포가 필요할 때의 선택지입니다.

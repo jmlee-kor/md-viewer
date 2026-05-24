@@ -8,13 +8,19 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const APP_ROOT = path.join(__dirname, '..', '..'); // src/main → 앱 루트
+// tools/ 탐색 기준 디렉토리. dev = 프로젝트 루트, 패키징 = exe 폴더(main.js 가 주입).
+// (electron 을 직접 require 하지 않아 순수 node 테스트에서도 동작)
+let baseDir = path.join(__dirname, '..', '..'); // 기본: src/main → 프로젝트 루트
+function setBaseDir(dir) {
+  if (dir) baseDir = dir;
+}
+
 const IS_WIN = process.platform === 'win32';
 const RENDER_TIMEOUT_MS = 20000;
 
 function loadConfig() {
   try {
-    const p = path.join(APP_ROOT, 'mdv.config.json');
+    const p = path.join(baseDir, 'mdv.config.json');
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {
     /* 잘못된 config 는 무시 */
@@ -25,7 +31,7 @@ function loadConfig() {
 function resolveJava(cfg) {
   if (process.env.MDV_JAVA) return process.env.MDV_JAVA;
   if (cfg.javaPath) return cfg.javaPath;
-  const bundled = path.join(APP_ROOT, 'tools', 'jre', 'bin', IS_WIN ? 'java.exe' : 'java');
+  const bundled = path.join(baseDir, 'tools', 'jre', 'bin', IS_WIN ? 'java.exe' : 'java');
   if (fs.existsSync(bundled)) return bundled;
   return 'java'; // PATH 에서 탐색
 }
@@ -33,7 +39,7 @@ function resolveJava(cfg) {
 function resolveJar(cfg) {
   if (process.env.MDV_PLANTUML_JAR) return process.env.MDV_PLANTUML_JAR;
   if (cfg.plantumlJar) return cfg.plantumlJar;
-  return path.join(APP_ROOT, 'tools', 'plantuml.jar');
+  return path.join(baseDir, 'tools', 'plantuml.jar');
 }
 
 function resolveDot(cfg) {
@@ -101,4 +107,4 @@ function render(src) {
   });
 }
 
-module.exports = { render };
+module.exports = { render, setBaseDir };

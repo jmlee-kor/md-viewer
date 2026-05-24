@@ -14,6 +14,11 @@ const resProtocol = require('./res-protocol');
 // privileged scheme 등록은 app ready 이전이어야 함
 resProtocol.registerPrivileged();
 
+// PlantUML tools/ 탐색 기준: 패키징 시 exe 폴더, dev 시 프로젝트 루트.
+plantuml.setBaseDir(
+  app.isPackaged ? path.dirname(app.getPath('exe')) : path.join(__dirname, '..', '..')
+);
+
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 let currentVaultRoot = null;

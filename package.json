@@ -11,7 +11,16 @@
     "test:vault": "node scripts/test-vault.cjs",
     "test:index": "node scripts/test-index.cjs",
     "test:unit": "node scripts/test-vault.cjs && node scripts/test-index.cjs",
-    "smoke": "electron scripts/smoke.js"
+    "smoke": "electron scripts/smoke.js",
+    "dist": "electron-builder --win --dir",
+    "install:local": "npm run dist && node scripts/install-local.mjs"
+  },
+  "build": {
+    "appId": "com.local.md-viewer",
+    "productName": "md-viewer",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "vendor/**/*", "package.json"],
+    "win": { "target": "dir" }
   },
   "license": "MIT",
   "devDependencies": {
@@ -19,6 +28,7 @@
     "@terrastruct/d2": "^0.1.33",
     "dompurify": "^3.4.5",
     "electron": "^42.2.0",
+    "electron-builder": "^26.8.1",
     "esbuild": "^0.28.0",
     "lit": "^3.3.3",
     "markdown-it": "^14.2.0",
