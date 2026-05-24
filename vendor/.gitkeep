@@ -1,0 +1,3 @@
+# 오프라인 배포용 vendored 라이브러리가 여기에 들어간다 (git 커밋 대상).
+# 외부 인터넷 PC에서 `npm run bundle:vendor` 로 생성 → 커밋 → 폐쇄망은 git pull.
+# 예정: lit, markdown-it, dompurify, mermaid, drawio-viewer, d2.wasm, marp, highlight.js

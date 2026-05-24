@@ -1,0 +1,17 @@
+# dev 전용 — 폐쇄망에는 git pull 로만 반입하므로 아래는 커밋하지 않음
+node_modules/
+dist/
+out/
+
+# Electron prebuilt 캐시 (Chromium) — 수동 반입 대상이라 repo 에 넣지 않음
+.electron-cache/
+
+# OS / 에디터
+Thumbs.db
+.DS_Store
+*.log
+
+# 단, vendor/ 는 의도적으로 커밋한다 (오프라인 배포 핵심).
+# 아래 negation 으로 vendor 하위가 위 규칙에 안 걸리게 보장.
+!vendor/
+!vendor/**

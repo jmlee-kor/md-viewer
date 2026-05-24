@@ -1,0 +1,14 @@
+{
+  "name": "md-viewer",
+  "version": "0.1.0",
+  "description": "사내 폐쇄망용 Obsidian형 Markdown 뷰어 (Electron, offline)",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "bundle:vendor": "node scripts/bundle-vendor.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
