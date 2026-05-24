@@ -2,7 +2,7 @@
   --bg: #1e1e1e;
   --fg: #d4d4d4;
   --accent: #569cd6;
-  --muted: #808080;
+  --muted: #9aa0a6;
 }
 
 * {
@@ -18,27 +18,7 @@ body {
   font-family: "Segoe UI", system-ui, sans-serif;
 }
 
-#app {
+mdv-app {
+  display: block;
   height: 100%;
-}
-
-.placeholder {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  text-align: center;
-}
-
-.placeholder h1 {
-  margin: 0;
-  color: var(--accent);
-  font-size: 2rem;
-}
-
-.hint {
-  color: var(--muted);
-  font-size: 0.9rem;
 }

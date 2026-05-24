@@ -5,10 +5,16 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "bundle:vendor": "node scripts/bundle-vendor.mjs"
+    "bundle:vendor": "node scripts/bundle-vendor.mjs",
+    "test:vault": "node scripts/test-vault.cjs",
+    "smoke": "electron scripts/smoke.js"
   },
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.2.0"
+    "dompurify": "^3.4.5",
+    "electron": "^33.2.0",
+    "esbuild": "^0.28.0",
+    "lit": "^3.3.3",
+    "markdown-it": "^14.2.0"
   }
 }

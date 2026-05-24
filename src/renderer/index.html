@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <!--
-      CSP: 인라인/원격 스크립트 차단, 로컬 리소스만 허용.
-      후속 단계에서 vendor/ 라이브러리(ESM)와 wasm 을 추가하며 필요한 만큼만 완화한다.
-      ('unsafe-inline' style 은 초기 UI 편의를 위해 임시 허용 — 추후 제거 검토)
+      CSP: 로컬 리소스만 허용. 인라인 스크립트 차단 (모듈 스크립트는 'self').
+      style 은 Lit 의 동적 스타일 편의를 위해 'unsafe-inline' 임시 허용.
+      후속: D2 wasm 도입 시 'wasm-unsafe-eval' 추가.
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -15,13 +15,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div id="app">
-      <main class="placeholder">
-        <h1>md-viewer</h1>
-        <p>오프라인 Markdown 뷰어 — 스켈레톤 동작 확인</p>
-        <p class="hint" id="status">초기화 중…</p>
-      </main>
-    </div>
+    <mdv-app></mdv-app>
     <script type="module" src="app.js"></script>
   </body>
 </html>

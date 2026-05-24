@@ -1,50 +1,70 @@
 'use strict';
 
 // Electron main process.
-// 책임: 윈도우 생성 + 보안 기본값. (vault 스캔/인덱싱/PlantUML IPC 는 후속 단계에서 이 파일에 붙는다.)
+// 책임: 윈도우 생성 + 보안 기본값 + vault IPC. (PlantUML IPC 는 후속 단계에서 추가)
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('node:path');
+const vault = require('./vault');
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
+/** 현재 열린 vault 루트 (절대경로). note:read 의 경로 검증 기준. */
+let currentVaultRoot = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     backgroundColor: '#1e1e1e',
-    show: false, // ready-to-show 까지 깜빡임 방지
+    show: false,
     webPreferences: {
-      // --- 보안 기본값 (이 세 줄이 핵심) ---
-      contextIsolation: true, // 렌더러와 preload 의 JS 컨텍스트 분리
-      nodeIntegration: false, // 렌더러에서 Node API 직접 접근 차단
-      sandbox: true, // 렌더러 프로세스 샌드박스
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-  });
-
+  mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
+// --- IPC: vault 열기 (폴더 선택 → 스캔 → 트리 반환) ---
+ipcMain.handle('vault:open', async () => {
+  const res = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    title: 'Vault 폴더 선택',
+    properties: ['openDirectory'],
+  });
+  if (res.canceled || !res.filePaths[0]) return null;
+  currentVaultRoot = res.filePaths[0];
+  const tree = await vault.scanVault(currentVaultRoot);
+  return { root: currentVaultRoot, tree };
+});
+
+// --- IPC: 특정 경로의 vault 재스캔 (파일 감시 단계에서 사용 예정) ---
+ipcMain.handle('vault:rescan', async () => {
+  if (!currentVaultRoot) return null;
+  const tree = await vault.scanVault(currentVaultRoot);
+  return { root: currentVaultRoot, tree };
+});
+
+// --- IPC: 노트 읽기 (vault 내부 경로만) ---
+ipcMain.handle('note:read', async (_e, relPath) => {
+  if (!currentVaultRoot) throw new Error('vault 미선택');
+  return vault.readNote(currentVaultRoot, relPath);
+});
+
 app.whenReady().then(() => {
   createWindow();
-
-  // macOS: dock 클릭 시 창 없으면 재생성 (사내는 Windows 이지만 관례상 둠)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  // Windows/Linux 는 모든 창 닫히면 종료
   if (process.platform !== 'darwin') app.quit();
 });

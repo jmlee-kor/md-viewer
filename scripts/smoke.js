@@ -1,13 +1,13 @@
 'use strict';
 
-// 헤드리스 스모크 테스트: 실제 창을 띄우지 않고(off-screen) index.html 을 로드해
-// (1) 페이지 로드 성공, (2) preload 브리지(window.mdv) 연결, (3) 렌더러 상태 정상
-// 을 검증하고 종료 코드로 결과를 보고한다. CI / 무디스플레이 환경용.
+// 헤드리스 스모크 테스트: off-screen 으로 index.html 로드 후
+// (1) ESM 모듈 로딩(CSP 통과), (2) Lit <mdv-app> 렌더 + 'Vault 열기' 버튼,
+// (3) preload IPC API 노출, (4) markdown→sanitize 파이프라인 동작 을 검증한다.
 
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 
-app.disableHardwareAcceleration(); // 헤드리스 GPU 이슈 회피
+app.disableHardwareAcceleration();
 
 let failed = false;
 const fail = (msg) => {
@@ -27,27 +27,38 @@ app.whenReady().then(async () => {
     },
   });
 
-  win.webContents.on('did-fail-load', (_e, code, desc) =>
-    fail(`did-fail-load ${code} ${desc}`)
-  );
+  win.webContents.on('did-fail-load', (_e, code, desc) => fail(`did-fail-load ${code} ${desc}`));
   win.webContents.on('console-message', (_e, level, message) => {
+    // level>=2 = error. CSP 위반/모듈 로드 실패가 여기 잡힌다.
     if (level >= 2) fail(`renderer console error: ${message}`);
   });
 
   try {
-    await win.loadFile(
-      path.join(__dirname, '..', 'src', 'renderer', 'index.html')
-    );
-    const bridge = await win.webContents.executeJavaScript(
-      'window.mdv && window.mdv.version'
-    );
-    const status = await win.webContents.executeJavaScript(
-      'document.getElementById("status").textContent'
-    );
-    console.log('preload bridge version:', bridge);
-    console.log('renderer status text  :', status);
-    if (!bridge) fail('window.mdv 미연결');
-    if (!/정상/.test(status)) fail(`status 비정상: ${status}`);
+    await win.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+    const result = await win.webContents.executeJavaScript(`(async () => {
+      await customElements.whenDefined('mdv-app');
+      const el = document.querySelector('mdv-app');
+      await el.updateComplete;
+      const btn = el.shadowRoot.querySelector('[data-open]');
+      const sample = window.__mdvTest.renderMarkdown('# 제목\\n\\n**굵게** 그리고 \`코드\`.\\n\\n<script>alert(1)<\\/script>');
+      return {
+        hasOpenApi: typeof window.mdv.openVault === 'function',
+        hasReadApi: typeof window.mdv.readNote === 'function',
+        btnText: btn && btn.textContent.trim(),
+        mdHasH1: /<h1>제목<\\/h1>/.test(sample),
+        mdStrong: /<strong>굵게<\\/strong>/.test(sample),
+        mdSanitized: !/<script>/.test(sample),
+      };
+    })()`);
+
+    console.log('result:', JSON.stringify(result));
+    if (!result.hasOpenApi) fail('mdv.openVault 미노출');
+    if (!result.hasReadApi) fail('mdv.readNote 미노출');
+    if (result.btnText !== 'Vault 열기') fail(`버튼 텍스트 비정상: ${result.btnText}`);
+    if (!result.mdHasH1) fail('markdown h1 렌더 실패');
+    if (!result.mdStrong) fail('markdown strong 렌더 실패');
+    if (!result.mdSanitized) fail('DOMPurify 살균 실패 — <script> 통과됨');
   } catch (e) {
     fail(String(e));
   }
