@@ -345,6 +345,32 @@ app.whenReady().then(async () => {
       const headingMiss = appEl._scrollToHeading(hProbe, '없는헤딩');
       const headingAnchorOk = dataHeadingOk && headingFound === true && headingMiss === false;
 
+      // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
+      appEl._tree = [
+        { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
+        { name: 'Diagrams.md', type: 'file', relPath: 'Diagrams.md' },
+        { name: 'Projects', type: 'dir', relPath: 'Projects', children: [
+          { name: 'Roadmap.md', type: 'file', relPath: 'Projects/Roadmap.md' } ] },
+      ];
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, cancelable: true }));
+      await appEl.updateComplete;
+      const paletteOpened = appEl._paletteOpen && !!appEl.shadowRoot.querySelector('.palette');
+      appEl._paletteQuery = 'road';
+      appEl._paletteIdx = 0;
+      await appEl.updateComplete;
+      const pItems = appEl.shadowRoot.querySelectorAll('.palette-item');
+      const fuzzyOk = pItems.length >= 1 && /Roadmap/.test(pItems[0].textContent);
+      let openedRel = null;
+      const origSel = appEl._onSelect.bind(appEl);
+      appEl._onSelect = (rel) => { openedRel = rel; };
+      appEl.shadowRoot.querySelector('.palette-input')
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
+      const enterOk = openedRel === 'Projects/Roadmap.md' && appEl._paletteOpen === false;
+      appEl._onSelect = origSel;
+      const paletteOk = paletteOpened && fuzzyOk && enterOk;
+      appEl._paletteOpen = false;
+      await appEl.updateComplete;
+
       // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API
       const titlebar = appEl.shadowRoot.querySelector('.titlebar');
       const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
@@ -439,6 +465,7 @@ app.whenReady().then(async () => {
         wheelZoomOk,
         cjkFontOk,
         headingAnchorOk,
+        paletteOk,
         titlebarOk,
         marpExportOk,
         reHydrateOk,
@@ -494,6 +521,7 @@ app.whenReady().then(async () => {
     if (!result.wheelZoomOk) fail('Ctrl+휠 줌 실패 (ctrl+wheel → zoomIn 미호출)');
     if (!result.cjkFontOk) fail('CJK monospace 폰트 실패 (@font-face 로드/적용)');
     if (!result.headingAnchorOk) fail('헤딩 앵커 스크롤 실패 (data-heading/매칭)');
+    if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');

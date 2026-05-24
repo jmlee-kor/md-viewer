@@ -32,6 +32,9 @@ class MdvApp extends LitElement {
     _searchMatchIdx: { state: true },
     _searchMatchTotal: { state: true },
     _sidebarWidth: { state: true },
+    _paletteOpen: { state: true },
+    _paletteQuery: { state: true },
+    _paletteIdx: { state: true },
   };
 
   static styles = [
@@ -477,6 +480,68 @@ class MdvApp extends LitElement {
       font-size: 0.82rem;
       padding: 0.5rem;
     }
+    /* Ctrl+P 빠른 전환기 오버레이 */
+    .palette-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 12vh;
+    }
+    .palette {
+      width: min(680px, 90vw);
+      max-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      background: #252729;
+      border: 1px solid #3a3d41;
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    .palette-input {
+      border: 0;
+      border-bottom: 1px solid #3a3d41;
+      background: #2a2c2f;
+      color: var(--fg, #d4d4d4);
+      font-size: 0.95rem;
+      padding: 0.7rem 0.9rem;
+      outline: none;
+    }
+    .palette-list {
+      overflow: auto;
+      min-height: 0;
+    }
+    .palette-item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      padding: 0.4rem 0.9rem;
+      cursor: pointer;
+    }
+    .palette-item.active,
+    .palette-item:hover {
+      background: #2d3a4a;
+    }
+    .pi-name {
+      font-size: 0.88rem;
+      color: var(--fg, #d4d4d4);
+    }
+    .pi-path {
+      font-size: 0.72rem;
+      color: var(--muted, #9aa0a6);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .palette-empty {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.85rem;
+      padding: 0.8rem 0.9rem;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -709,6 +774,9 @@ class MdvApp extends LitElement {
     this._matchEls = []; // 현재 노트의 mark.search-hit 엘리먼트들 (비반응 캐시)
     this._pendingHeading = null; // [[note#heading]] 클릭 시 렌더 후 스크롤할 헤딩
     this._sidebarWidth = getSetting('sidebarWidth', 280);
+    this._paletteOpen = false; // Ctrl+P 빠른 전환기
+    this._paletteQuery = '';
+    this._paletteIdx = 0;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -728,6 +796,14 @@ class MdvApp extends LitElement {
       this._appAction(e.deltaY < 0 ? 'zoomIn' : 'zoomOut');
     };
     window.addEventListener('wheel', this._onWheel, { passive: false });
+    // Ctrl/Cmd+P → 빠른 전환기 (브라우저 인쇄 기본동작 차단)
+    this._onKeydown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        this._openPalette();
+      }
+    };
+    window.addEventListener('keydown', this._onKeydown);
   }
 
   disconnectedCallback() {
@@ -736,6 +812,7 @@ class MdvApp extends LitElement {
     this._unsubMax?.();
     window.removeEventListener('blur', this._onBlur);
     window.removeEventListener('wheel', this._onWheel);
+    window.removeEventListener('keydown', this._onKeydown);
   }
 
   firstUpdated() {
@@ -879,6 +956,89 @@ class MdvApp extends LitElement {
     this._onSelect(relPath, terms);
   }
 
+  // --- Ctrl+P 빠른 전환기 ---
+  /** 트리를 평탄화해 전체 파일 목록 */
+  _allFiles() {
+    const out = [];
+    const walk = (nodes) => {
+      for (const n of nodes || []) {
+        if (n.type === 'file') out.push({ relPath: n.relPath, name: n.name });
+        else if (n.children) walk(n.children);
+      }
+    };
+    walk(this._tree);
+    return out;
+  }
+
+  /** 부분서열(fuzzy) 점수. 매칭 실패 시 -1. 연속/경계 보너스. */
+  _fuzzyScore(query, str) {
+    const q = query.toLowerCase();
+    const s = str.toLowerCase();
+    if (!q) return 0;
+    let qi = 0;
+    let score = 0;
+    let prev = -2;
+    for (let i = 0; i < s.length && qi < q.length; i++) {
+      if (s[i] === q[qi]) {
+        score += prev === i - 1 ? 3 : 1; // 연속 매치 보너스
+        if (i === 0 || /[/\s_\-.]/.test(s[i - 1])) score += 2; // 단어 경계 보너스
+        prev = i;
+        qi++;
+      }
+    }
+    return qi === q.length ? score : -1;
+  }
+
+  /** 현재 쿼리로 필터/랭킹된 파일 목록 (최대 50) */
+  _paletteResults() {
+    const files = this._allFiles();
+    const q = this._paletteQuery.trim();
+    if (!q) return files.slice(0, 50);
+    const scored = [];
+    for (const f of files) {
+      const sBase = this._fuzzyScore(q, f.name);
+      const sPath = this._fuzzyScore(q, f.relPath);
+      if (sBase < 0 && sPath < 0) continue;
+      const score = (sBase >= 0 ? sBase + 10 : 0) + (sPath >= 0 ? sPath : 0); // basename 매치 가산
+      scored.push({ f, score });
+    }
+    scored.sort((a, b) => b.score - a.score || a.f.relPath.localeCompare(b.f.relPath));
+    return scored.slice(0, 50).map((x) => x.f);
+  }
+
+  _openPalette() {
+    if (!this._tree.length) return; // vault 없으면 무시
+    this._paletteQuery = '';
+    this._paletteIdx = 0;
+    this._paletteOpen = true;
+  }
+
+  _closePalette() {
+    this._paletteOpen = false;
+  }
+
+  _paletteSelect(relPath) {
+    this._closePalette();
+    this._onSelect(relPath);
+  }
+
+  _onPaletteKey(e, results) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      this._paletteIdx = Math.min(results.length - 1, this._paletteIdx + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      this._paletteIdx = Math.max(0, this._paletteIdx - 1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const f = results[this._paletteIdx];
+      if (f) this._paletteSelect(f.relPath);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this._closePalette();
+    }
+  }
+
   async _onSelect(relPath, searchTerms = null, heading = null) {
     const sameNote = this._selected === relPath && !this._marpSrc && !this._rawView;
     this._selected = relPath;
@@ -947,6 +1107,13 @@ class MdvApp extends LitElement {
           this._pendingHeading = null;
         }
       }
+    }
+    // 빠른 전환기: 열릴 때 입력 포커스 / 선택 이동 시 활성 항목 가시화
+    if (changed.has('_paletteOpen') && this._paletteOpen) {
+      this.renderRoot.querySelector('.palette-input')?.focus();
+    }
+    if (changed.has('_paletteIdx')) {
+      this.renderRoot.querySelector('.palette-item.active')?.scrollIntoView({ block: 'nearest' });
     }
   }
 
@@ -1212,6 +1379,44 @@ ${lines.map(
         </div>
       </div>
       ${this._renderMenu()}
+      ${this._paletteOpen ? this._renderPalette() : ''}
+    `;
+  }
+
+  /** Ctrl+P 빠른 전환기 오버레이 (퍼지 파일 열기) */
+  _renderPalette() {
+    const results = this._paletteResults();
+    if (this._paletteIdx >= results.length) this._paletteIdx = Math.max(0, results.length - 1);
+    return html`
+      <div class="palette-overlay" @click=${this._closePalette}>
+        <div class="palette" @click=${(e) => e.stopPropagation()}>
+          <input
+            class="palette-input"
+            type="text"
+            placeholder="파일 열기… (↑↓ 이동, Enter 열기, Esc 닫기)"
+            .value=${this._paletteQuery}
+            @input=${(e) => {
+              this._paletteQuery = e.target.value;
+              this._paletteIdx = 0;
+            }}
+            @keydown=${(e) => this._onPaletteKey(e, results)}
+          />
+          <div class="palette-list">
+            ${results.length
+              ? results.map(
+                  (f, i) => html`<div
+                    class="palette-item ${i === this._paletteIdx ? 'active' : ''}"
+                    title=${f.relPath}
+                    @click=${() => this._paletteSelect(f.relPath)}
+                  >
+                    <span class="pi-name">${f.name}</span>
+                    ${f.relPath.includes('/') ? html`<span class="pi-path">${f.relPath}</span>` : ''}
+                  </div>`
+                )
+              : html`<div class="palette-empty">결과 없음</div>`}
+          </div>
+        </div>
+      </div>
     `;
   }
 
