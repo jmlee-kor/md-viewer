@@ -10,12 +10,31 @@
 }
 
 :root {
+  /* 테마 팔레트 (기본=다크). data-theme="light" 에서 재정의. Shadow DOM 으로 상속됨. */
   --bg: #1e1e1e;
   --fg: #d4d4d4;
   --accent: #569cd6;
   --muted: #9aa0a6;
+  --panel: #232323; /* 사이드바/바 배경 */
+  --panel2: #2a2c2f; /* 입력/버튼 배경 */
+  --border: #333; /* 경계선 */
+  --code-bg: #2d2d2d; /* 코드/인용 배경 */
+  --sel: #2d3a4a; /* 선택/활성 항목 */
+  --font-scale: 1; /* 콘텐츠 폰트 배율 */
   /* 코드/원본 monospace 스택 (Shadow DOM 으로 상속). 한글 정렬 위해 NanumGothicCoding 우선. */
   --mono: 'NanumGothicCoding', 'Consolas', 'Courier New', monospace;
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --accent: #0969da;
+  --muted: #656d76;
+  --panel: #f0f1f3;
+  --panel2: #eaecef;
+  --border: #d0d7de;
+  --code-bg: #f3f4f6;
+  --sel: #d6e4f5;
 }
 
 * {

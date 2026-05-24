@@ -60,8 +60,8 @@ class MdvApp extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: #2d2f33;
-      border-bottom: 1px solid #333;
+      background: var(--panel2, #2d2f33);
+      border-bottom: 1px solid var(--border, #333);
       -webkit-app-region: drag;
       user-select: none;
     }
@@ -130,7 +130,7 @@ class MdvApp extends LitElement {
       min-width: 230px;
       max-width: 320px;
       padding: 0.8rem;
-      background: #252526;
+      background: var(--panel, #252526);
       border: 1px solid #3a3d41;
       border-radius: 10px;
       box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
@@ -223,7 +223,7 @@ class MdvApp extends LitElement {
     .recent-open {
       flex: 1 1 auto;
       text-align: left;
-      background: #2d2f33;
+      background: var(--panel2, #2d2f33);
       color: var(--fg, #d4d4d4);
       border: 1px solid #3a3d41;
       border-radius: 5px;
@@ -298,8 +298,8 @@ class MdvApp extends LitElement {
       min-width: 0;
       /* 하단 padding 으로 좌하단 플로팅 ☰ 버튼에 마지막 트리 항목이 가리지 않게 */
       padding: 0.6rem 0.6rem 64px;
-      border-right: 1px solid #333;
-      background: #1e1e1e;
+      border-right: 1px solid var(--border, #333);
+      background: var(--bg, #1e1e1e);
     }
     .content {
       display: flex;
@@ -316,8 +316,8 @@ class MdvApp extends LitElement {
       bottom: 0;
       width: 220px;
       overflow: auto;
-      background: #232323;
-      border-left: 1px solid #333;
+      background: var(--panel, #232323);
+      border-left: 1px solid var(--border, #333);
       padding: 0.6rem 0.5rem;
       font-size: 0.82rem;
     }
@@ -343,7 +343,7 @@ class MdvApp extends LitElement {
       text-overflow: ellipsis;
     }
     .toc-item:hover {
-      background: #2d3a4a;
+      background: var(--sel, #2d3a4a);
       color: #fff;
     }
     .toc-empty {
@@ -362,8 +362,8 @@ class MdvApp extends LitElement {
       gap: 0.75rem;
       align-items: center;
       padding: 0.35rem 0.75rem;
-      border-bottom: 1px solid #333;
-      background: #232323;
+      border-bottom: 1px solid var(--border, #333);
+      background: var(--panel, #232323);
     }
     .tabs {
       display: inline-flex;
@@ -390,7 +390,7 @@ class MdvApp extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .tab {
-      background: #2a2c2f;
+      background: var(--panel2, #2a2c2f);
       color: var(--muted, #9aa0a6);
       border: 0;
       padding: 3px 0;
@@ -409,6 +409,7 @@ class MdvApp extends LitElement {
     .note {
       padding: 1.5rem 2.5rem;
       max-width: 60rem;
+      font-size: calc(1rem * var(--font-scale, 1));
     }
     /* 위키 임베드 */
     .note .mdv-embed.broken {
@@ -456,14 +457,14 @@ class MdvApp extends LitElement {
       display: flex;
       gap: 4px;
       align-items: center;
-      background: #1e1e1e;
+      background: var(--bg, #1e1e1e);
       padding-bottom: 0.5rem;
       margin-bottom: 0.3rem;
     }
     .search input {
       flex: 1 1 auto;
       min-width: 0;
-      background: #2a2c2f;
+      background: var(--panel2, #2a2c2f);
       color: var(--fg, #d4d4d4);
       border: 1px solid #3a3d41;
       border-radius: 6px;
@@ -501,10 +502,10 @@ class MdvApp extends LitElement {
       border-radius: 6px;
     }
     .sr-item:hover {
-      background: #2a2c2f;
+      background: var(--panel2, #2a2c2f);
     }
     .sr-item.active {
-      background: #2d3a4a;
+      background: var(--sel, #2d3a4a);
     }
     .sr-title {
       font-size: 0.85rem;
@@ -520,7 +521,7 @@ class MdvApp extends LitElement {
       font-size: 0.68rem;
       font-weight: 500;
       color: var(--muted, #9aa0a6);
-      background: #2a2c2f;
+      background: var(--panel2, #2a2c2f);
       border: 1px solid #3a3d41;
       border-radius: 8px;
       padding: 0 6px;
@@ -574,7 +575,7 @@ class MdvApp extends LitElement {
     .palette-input {
       border: 0;
       border-bottom: 1px solid #3a3d41;
-      background: #2a2c2f;
+      background: var(--panel2, #2a2c2f);
       color: var(--fg, #d4d4d4);
       font-size: 0.95rem;
       padding: 0.7rem 0.9rem;
@@ -593,7 +594,7 @@ class MdvApp extends LitElement {
     }
     .palette-item.active,
     .palette-item:hover {
-      background: #2d3a4a;
+      background: var(--sel, #2d3a4a);
     }
     .pi-name {
       font-size: 0.88rem;
@@ -631,7 +632,7 @@ class MdvApp extends LitElement {
       padding: 0.5rem 0.8rem;
     }
     .lb-bar button {
-      background: #2d2f33;
+      background: var(--panel2, #2d2f33);
       color: #fff;
       border: 1px solid #4a4d51;
       border-radius: 5px;
@@ -694,7 +695,7 @@ class MdvApp extends LitElement {
     .backlinks {
       margin: 0 2.5rem 2rem;
       max-width: 60rem;
-      border-top: 1px solid #333;
+      border-top: 1px solid var(--border, #333);
       padding-top: 1rem;
     }
     .backlinks h3 {
@@ -722,7 +723,7 @@ class MdvApp extends LitElement {
     }
     .note h1,
     .note h2 {
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid var(--border, #333);
       padding-bottom: 0.2em;
     }
     /* 헤딩 접기/펼치기 */
@@ -748,14 +749,14 @@ class MdvApp extends LitElement {
       content: '▸';
     }
     .note code {
-      background: #2d2d2d;
+      background: var(--code-bg, #2d2d2d);
       padding: 0.15em 0.4em;
       border-radius: 4px;
       font-size: 0.9em;
       font-family: var(--mono, monospace); /* CJK 정렬 monospace */
     }
     .note pre {
-      background: #2d2d2d;
+      background: var(--code-bg, #2d2d2d);
       padding: 0.9rem;
       border-radius: 6px;
       overflow: auto;
@@ -1076,9 +1077,35 @@ class MdvApp extends LitElement {
   }
 
   firstUpdated() {
+    // 저장된 테마/폰트 배율 적용 (document 레벨 → Shadow DOM 상속)
+    this._applyTheme(getSetting('theme', 'dark'));
+    this._applyFontScale(getSetting('fontScale', 1));
     // 시작 시 최근 vault 자동 로딩 (설정 on + 목록 있을 때)
     const last = this._recent[0];
     if (last && getSetting('autoOpenRecent', true)) this._autoOpen(last);
+  }
+
+  _applyTheme(theme) {
+    if (theme === 'light') document.documentElement.dataset.theme = 'light';
+    else delete document.documentElement.dataset.theme;
+  }
+
+  _toggleTheme() {
+    const next = getSetting('theme', 'dark') === 'light' ? 'dark' : 'light';
+    setSetting('theme', next);
+    this._applyTheme(next);
+    this.requestUpdate(); // 메뉴 라벨 갱신
+  }
+
+  _applyFontScale(v) {
+    document.documentElement.style.setProperty('--font-scale', String(v));
+  }
+
+  _bumpFontScale(delta) {
+    const v = Math.min(1.6, Math.max(0.7, Math.round((getSetting('fontScale', 1) + delta) * 100) / 100));
+    setSetting('fontScale', v);
+    this._applyFontScale(v);
+    this.requestUpdate();
   }
 
   async _autoOpen(root) {
@@ -2046,6 +2073,15 @@ ${lines.map(
               )}
             </select>
           </label>
+          <div class="menu-sep"></div>
+          <div class="menu-label">테마 · 글자크기</div>
+          <div class="menu-actions" role="group" aria-label="테마">
+            <button class="iconbtn" data-theme-toggle title="라이트/다크 전환" @click=${this._toggleTheme}>
+              ${getSetting('theme', 'dark') === 'light' ? '☀ 라이트' : '🌙 다크'}
+            </button>
+            <button class="iconbtn" title="글자 작게" @click=${() => this._bumpFontScale(-0.1)}>가−</button>
+            <button class="iconbtn" title="글자 크게" @click=${() => this._bumpFontScale(0.1)}>가+</button>
+          </div>
           <div class="menu-sep"></div>
           <div class="menu-label">보기</div>
           <div class="menu-actions" role="group" aria-label="보기">

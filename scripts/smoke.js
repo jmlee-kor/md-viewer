@@ -412,6 +412,16 @@ app.whenReady().then(async () => {
       await appEl.updateComplete;
       const tagOk = tagChipOk && !!tagFilterOk;
 
+      // 테마 토글 + 폰트 배율 (document 레벨 적용)
+      appEl._applyTheme('light');
+      const themeLightOk = document.documentElement.dataset.theme === 'light';
+      appEl._applyTheme('dark');
+      const themeDarkOk = !document.documentElement.dataset.theme;
+      appEl._applyFontScale(1.25);
+      const fontScaleOk = getComputedStyle(document.documentElement).getPropertyValue('--font-scale').trim() === '1.25';
+      appEl._applyFontScale(1);
+      const themeOk = themeLightOk && themeDarkOk && fontScaleOk;
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -622,6 +632,7 @@ app.whenReady().then(async () => {
         headingAnchorOk,
         tocOk,
         tagOk,
+        themeOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -694,6 +705,7 @@ app.whenReady().then(async () => {
     if (!result.headingAnchorOk) fail('헤딩 앵커 스크롤 실패 (data-heading/매칭)');
     if (!result.tocOk) fail('아웃라인(TOC) 패널 실패');
     if (!result.tagOk) fail('태그 #tag 칩/필터 실패');
+    if (!result.themeOk) fail('테마 토글/폰트 배율 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
