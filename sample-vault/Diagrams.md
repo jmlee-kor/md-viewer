@@ -26,13 +26,30 @@ DB -> 서버: 결과
 
 ## PlantUML
 
-> PlantUML 은 Java 기반이라 `tools/` 에 JRE + plantuml.jar 반입 후 동작합니다
-> (자세히는 tools/README.md). 미반입 시 안내 메시지가 표시됩니다.
+> 설치본은 JRE + plantuml.jar + Graphviz 가 자동 번들되어 **설정 없이** 동작합니다.
+> (소스 실행 시엔 `tools/` 반입 — 자세히는 tools/README.md)
+
+시퀀스 다이어그램 (PlantUML 내장 엔진):
 
 ```plantuml
 @startuml
 Alice -> Bob: 인증 요청
 Bob --> Alice: 토큰 발급
+@enduml
+```
+
+클래스 다이어그램 (Graphviz `dot` 의존):
+
+```plantuml
+@startuml
+class Animal {
+  +name: String
+  +eat()
+}
+class Dog
+class Cat
+Animal <|-- Dog
+Animal <|-- Cat
 @enduml
 ```
 

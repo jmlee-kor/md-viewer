@@ -139,6 +139,22 @@ app.whenReady().then(async () => {
       const plantumlSvg = !!pu.querySelector('.mdv-diagram svg');
       const plantumlErr = pu.querySelector('.mdv-diagram-msg')?.textContent?.split('\\n')[0] || null;
 
+      // PlantUML Graphviz(dot) 의존 다이어그램 실검증: 클래스 다이어그램은 dot 필요.
+      // tools/graphviz 번들로 렌더되면 svg, 미반입이면 에러메시지(배선만 확인).
+      const puc = document.createElement('div');
+      puc.style.width = '600px';
+      puc.innerHTML = window.__mdvTest.renderMarkdown(
+        '~~~plantuml\\n@startuml\\nclass Animal\\nclass Dog\\nAnimal <|-- Dog\\n@enduml\\n~~~'
+      );
+      document.body.appendChild(puc);
+      await window.__mdvTest.hydrateDiagrams(puc);
+      for (let i = 0; i < 80; i++) {
+        if (puc.querySelector('.mdv-diagram svg') || puc.querySelector('.mdv-diagram-msg')) break;
+        await sleep(100);
+      }
+      const plantumlDotSvg = !!puc.querySelector('.mdv-diagram svg');
+      const plantumlDotErr = puc.querySelector('.mdv-diagram-msg')?.textContent?.split('\\n')[0] || null;
+
       // 다이어그램 SVG 산출물 새니타이즈: 신뢰않는 엔진(d2/plantuml 류)이 문자열 SVG 에
       // 악성 페이로드(script/onload/javascript:)를 섞어도 주입 전 제거되는지 검증.
       // (trusted 미지정 → registry 가 sanitizeDiagramSvg 통과시킴)
@@ -528,6 +544,8 @@ app.whenReady().then(async () => {
         plantumlWired,
         plantumlSvg,
         plantumlErr,
+        plantumlDotSvg,
+        plantumlDotErr,
         marpDetected,
         notMarp,
         marpSectionCount,
@@ -589,6 +607,13 @@ app.whenReady().then(async () => {
     if (!result.plantumlWired) fail('renderPlantUML API 미노출');
     if (!result.plantumlSvg && !result.plantumlErr) fail('PlantUML IPC 응답 이상 (svg/에러 모두 없음)');
     console.log(result.plantumlSvg ? 'PlantUML: 실제 렌더 ✅' : `PlantUML: 배선 OK, 렌더 보류 (${result.plantumlErr})`);
+    // dot 의존(클래스) 다이어그램: svg(번들 graphviz) 또는 클린 에러(미반입). svg/에러 둘 다 없으면 이상
+    if (!result.plantumlDotSvg && !result.plantumlDotErr) fail('PlantUML dot 다이어그램 응답 이상');
+    console.log(
+      result.plantumlDotSvg
+        ? 'PlantUML Graphviz(dot): 클래스 다이어그램 렌더 ✅'
+        : `PlantUML Graphviz(dot): 렌더 보류 (${result.plantumlDotErr})`
+    );
     if (!result.marpDetected) fail('Marp frontmatter 감지 실패');
     if (result.notMarp) fail('Marp 오탐지 (일반 노트를 marp로 판정)');
     if (result.marpSectionCount !== 2) fail(`Marp 슬라이드 수 이상: ${result.marpSectionCount} (기대 2)`);
