@@ -725,6 +725,39 @@ class MdvApp extends LitElement {
       padding-left: 1rem;
       color: var(--muted, #9aa0a6);
     }
+    /* Obsidian 콜아웃 (> [!type]) */
+    .note .mdv-callout {
+      border: 1px solid #3a3d41;
+      border-left: 4px solid var(--cl, #569cd6);
+      border-radius: 6px;
+      margin: 0.8rem 0;
+      padding: 0.6rem 0.9rem;
+      background: color-mix(in srgb, var(--cl, #569cd6) 10%, transparent);
+    }
+    .note .mdv-callout-title {
+      font-weight: 600;
+      color: var(--cl, #569cd6);
+      margin-bottom: 0.3rem;
+    }
+    .note .mdv-callout > :not(.mdv-callout-title):last-child {
+      margin-bottom: 0;
+    }
+    /* 타입별 색 (--cl). 미정의 타입은 기본 note 색 */
+    .note .mdv-callout-note,
+    .note .mdv-callout-info { --cl: #569cd6; }
+    .note .mdv-callout-tip,
+    .note .mdv-callout-success,
+    .note .mdv-callout-check { --cl: #4ec9b0; }
+    .note .mdv-callout-warning,
+    .note .mdv-callout-caution,
+    .note .mdv-callout-attention { --cl: #d8a657; }
+    .note .mdv-callout-danger,
+    .note .mdv-callout-error,
+    .note .mdv-callout-bug,
+    .note .mdv-callout-fail { --cl: #f48771; }
+    .note .mdv-callout-question,
+    .note .mdv-callout-quote,
+    .note .mdv-callout-example { --cl: #c586c0; }
     .note a {
       color: var(--accent, #569cd6);
     }

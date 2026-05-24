@@ -81,6 +81,11 @@ app.whenReady().then(async () => {
         && /data-task="todo"/.test(tl) && /data-task="done"/.test(tl)
         && /data-task="doing"/.test(tl) && /data-task="cancelled"/.test(tl);
 
+      // 콜아웃 (> [!type] 제목)
+      const co = window.__mdvTest.renderMarkdown('> [!warning] 주의사항\\n> 본문 내용');
+      const calloutOk = /mdv-callout mdv-callout-warning/.test(co)
+        && /mdv-callout-title">주의사항/.test(co) && /본문 내용/.test(co);
+
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
       // Mermaid: ~~~ fence(백틱 회피) → placeholder → hydrate → svg
@@ -546,6 +551,7 @@ app.whenReady().then(async () => {
         plantumlErr,
         plantumlDotSvg,
         plantumlDotErr,
+        calloutOk,
         marpDetected,
         notMarp,
         marpSectionCount,
@@ -624,6 +630,7 @@ app.whenReady().then(async () => {
     if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);
     if (!result.treeIndent) fail('파일 트리 중첩 들여쓰기 실패');
     if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
+    if (!result.calloutOk) fail('콜아웃(> [!type]) 렌더 실패');
     if (!result.menuOk) fail('플로팅 메뉴 토글/패널 실패');
     if (!result.menuActionsOk) fail(`창/보기 액션 메뉴 실패 (appAction API/버튼수=${result.actionBtnCount})`);
     if (!result.autoOpenOk) fail('시작 시 자동열기 토글 체크박스 없음');

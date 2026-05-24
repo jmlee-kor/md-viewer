@@ -142,6 +142,51 @@ function diagramFencePlugin(md) {
   };
 }
 
+// Obsidian 콜아웃: `> [!type] 제목` blockquote → 스타일 박스(div.mdv-callout).
+// 첫 줄이 [!type] 마커면 blockquote 를 콜아웃으로 변환, 제목 삽입 + 본문 재파싱.
+const CALLOUT_RE = /^\[!(\w+)\][+-]?\s*(.*)$/;
+function calloutPlugin(md) {
+  md.core.ruler.after('block', 'mdv_callout', (state) => {
+    const t = state.tokens;
+    for (let i = 0; i < t.length; i++) {
+      if (t[i].type !== 'blockquote_open') continue;
+      const para = t[i + 1];
+      const inl = t[i + 2];
+      if (!para || para.type !== 'paragraph_open' || !inl || inl.type !== 'inline') continue;
+      const nl = inl.content.indexOf('\n');
+      const firstLine = (nl >= 0 ? inl.content.slice(0, nl) : inl.content).trim();
+      const m = CALLOUT_RE.exec(firstLine);
+      if (!m) continue;
+      const type = m[1].toLowerCase();
+      const titleText = m[2].trim() || type.charAt(0).toUpperCase() + type.slice(1);
+      // blockquote_open/close → div.mdv-callout
+      t[i].tag = 'div';
+      t[i].attrSet('class', `mdv-callout mdv-callout-${type}`);
+      t[i].attrSet('data-callout', type);
+      let depth = 0;
+      for (let j = i; j < t.length; j++) {
+        if (t[j].type === 'blockquote_open') depth++;
+        else if (t[j].type === 'blockquote_close') {
+          depth--;
+          if (depth === 0) {
+            t[j].tag = 'div';
+            break;
+          }
+        }
+      }
+      // 본문에서 마커 줄 제거 후 인라인 재파싱
+      const rest = nl >= 0 ? inl.content.slice(nl + 1) : '';
+      inl.content = rest;
+      inl.children = [];
+      md.inline.parse(rest, md, state.env, inl.children);
+      // 제목 토큰 삽입 (blockquote_open 다음)
+      const titleTok = new state.Token('html_block', '', 0);
+      titleTok.content = `<div class="mdv-callout-title">${md.utils.escapeHtml(titleText)}</div>\n`;
+      t.splice(i + 1, 0, titleTok);
+    }
+  });
+}
+
 // 이미지 src 가 vault 상대경로면 mdv-res:// 로 치환 (노트 위치 기준).
 function imageRewritePlugin(md) {
   const defaultRender =
@@ -193,13 +238,14 @@ const md = new MarkdownIt({
 })
   .use(wikilinkPlugin)
   .use(diagramFencePlugin)
+  .use(calloutPlugin)
   .use(imageRewritePlugin)
   .use(taskListPlugin);
 
 const PURIFY_OPTS = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
   ADD_TAGS: ['use'],
-  ADD_ATTR: ['target', 'data-target', 'data-raw', 'data-heading', 'type', 'checked', 'disabled'],
+  ADD_ATTR: ['target', 'data-target', 'data-raw', 'data-heading', 'data-callout', 'type', 'checked', 'disabled'],
   // 기본 안전 스킴 + 커스텀 mdv-res (vault 이미지) 허용
   ALLOWED_URI_REGEXP:
     /^(?:(?:https?|mailto|tel|callto|cid|xmpp|data|mdv-res):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
