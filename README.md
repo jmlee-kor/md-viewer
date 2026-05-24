@@ -55,6 +55,30 @@ scripts/          vendor 생성(fetch/bundle) + 테스트 + 스모크
 tools/            PlantUML 반입 바이너리 위치 (README 만 커밋)
 ```
 
+## 보안 모델
+
+**전제: vault 콘텐츠를 완전히 신뢰하지는 않는다.** 악성으로 크래프트된
+`.md`(또는 그 안의 다이어그램 소스)를 열어도 코드 실행/데이터 유출이
+없어야 한다. 방어선은 다층(defense-in-depth)으로 구성된다.
+
+- **렌더러 격리** — contextIsolation/sandbox on, nodeIntegration off,
+  preload contextBridge 로만 제한된 API 노출. 렌더러에서 임의 코드가 돌아도
+  Node/FS 에 직접 도달 불가.
+- **네트워크 차단** — CSP `connect-src 'self'`. 외부로의 비콘/유출 불가.
+- **인라인 핸들러 차단** — CSP `script-src` 에 `unsafe-inline` 없음 → SVG
+  내 `onload=` 등 인라인 이벤트 핸들러가 실행되지 않음. (단 ELK 레이아웃을
+  쓰는 D2 때문에 `unsafe-eval` 은 허용 — 위 격리/네트워크 차단으로 상쇄.)
+- **노트 본문 살균** — markdown-it 출력은 DOMPurify 통과(`markdown.js`).
+- **다이어그램 SVG 살균** (`diagrams/registry.js`) — 엔진별 신뢰 차등:
+  - **신뢰(면제)**: `mermaid`(securityLevel:strict 로 자체 살균) — 추가
+    살균 시 foreignObject htmlLabels 가 제거돼 라벨이 사라지므로 면제.
+  - **신뢰않음(살균)**: `d2`(WASM)·`plantuml`(java jar) 산출 SVG 문자열은
+    `el.innerHTML` 주입 전 DOMPurify 통과 → script/이벤트핸들러/`javascript:`
+    링크 제거. 두 엔진은 `<text>` 기반이라 foreignObject 손실 없음(검증됨).
+- **잔여 리스크**: `draw.io`(GraphViewer)는 mxgraph XML 을 DOM 에 직접 렌더해
+  살균 경로를 거치지 않는다. 보기 전용 벤더 뷰어 + 위 CSP/격리로 완화하나,
+  신뢰않는 drawio 다이어그램은 표면이 남는다(향후 산출 서브트리 후살균 검토).
+
 ## 테스트
 
 ```bash

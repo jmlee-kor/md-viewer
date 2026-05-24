@@ -16,4 +16,4 @@ registerDiagram('mermaid', async (src) => {
   const id = `mmd-${Date.now()}-${counter++}`;
   const { svg } = await mermaid.render(id, src);
   return svg; // SVG 문자열 (mermaid 가 strict 모드로 새니타이즈)
-});
+}, { trusted: true }); // strict 자체 살균 + foreignObject(htmlLabels) 보존 위해 재살균 면제

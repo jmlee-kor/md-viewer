@@ -73,6 +73,10 @@ app.whenReady().then(async () => {
       await window.__mdvTest.hydrateDiagrams(dd);
       const mermaidSvg = !!dd.querySelector('.mdv-diagram svg');
       const mermaidErr = dd.querySelector('.mdv-diagram-msg')?.textContent || null;
+      // 살균이 라벨을 깨지 않았는지: 노드 텍스트("시작"/"끝")가 살균 후에도 살아있어야 함.
+      // mermaid foreignObject(htmlLabels) 사용 시 살균이 내용을 지우면 빈 다이어그램이 됨.
+      const mermaidFO = !!dd.querySelector('.mdv-diagram foreignObject, .mdv-diagram foreignobject');
+      const mermaidLabelOk = /시작/.test(dd.querySelector('.mdv-diagram')?.textContent || '');
 
       // draw.io: mxGraph XML → GraphViewer SVG (script 비동기 로드 → 폴링)
       const dx = document.createElement('div');
@@ -97,6 +101,10 @@ app.whenReady().then(async () => {
       for (let i = 0; i < 100; i++) { if (d2div.querySelector('.mdv-diagram svg')) break; await sleep(100); }
       const d2Svg = !!d2div.querySelector('.mdv-diagram svg');
       const d2Err = d2div.querySelector('.mdv-diagram-msg')?.textContent || null;
+      // 살균이 d2 라벨을 깨지 않았는지: 노드 텍스트(x,y)가 살균 후에도 남아야 함.
+      const d2Text = d2div.querySelector('.mdv-diagram svg')?.textContent || '';
+      const d2LabelOk = /x/.test(d2Text) && /y/.test(d2Text);
+      const d2FO = !!d2div.querySelector('.mdv-diagram foreignObject, .mdv-diagram foreignobject');
 
       // PlantUML: main process IPC(java -jar). 배선 필수, 실제 렌더는 java/jar 반입 시.
       const plantumlWired = typeof window.mdv.renderPlantUML === 'function';
@@ -111,6 +119,28 @@ app.whenReady().then(async () => {
       }
       const plantumlSvg = !!pu.querySelector('.mdv-diagram svg');
       const plantumlErr = pu.querySelector('.mdv-diagram-msg')?.textContent?.split('\\n')[0] || null;
+
+      // 다이어그램 SVG 산출물 새니타이즈: 신뢰않는 엔진(d2/plantuml 류)이 문자열 SVG 에
+      // 악성 페이로드(script/onload/javascript:)를 섞어도 주입 전 제거되는지 검증.
+      // (trusted 미지정 → registry 가 sanitizeDiagramSvg 통과시킴)
+      window.__mdvTest.registerDiagram('eviltest', async () =>
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">' +
+        '<script>window.__xssScript=1<\\/script>' +
+        '<rect width="10" height="10" onload="window.__xssOnload=1"/>' +
+        '<a href="javascript:window.__xssJs=1">x</a>' +
+        '<text>안전라벨</text>' +
+        '</svg>');
+      const ev = document.createElement('div');
+      ev.innerHTML = '<div class="mdv-diagram" data-lang="eviltest"><code class="mdv-diagram-src">x</code></div>';
+      document.body.appendChild(ev);
+      await window.__mdvTest.hydrateDiagrams(ev);
+      const evHtml = ev.querySelector('.mdv-diagram')?.innerHTML || '';
+      const sanitizeStripScript = !/<script/i.test(evHtml) && !window.__xssScript;
+      const sanitizeStripHandler = !/onload/i.test(evHtml) && !window.__xssOnload;
+      const sanitizeStripJsHref = !/javascript:/i.test(evHtml) && !window.__xssJs;
+      const sanitizeKeepsBenign = /안전라벨/.test(evHtml); // 무해 콘텐츠는 보존
+      const diagramSanitizeOk =
+        sanitizeStripScript && sanitizeStripHandler && sanitizeStripJsHref && sanitizeKeepsBenign;
 
       // Marp: frontmatter 감지 + 슬라이드 렌더(2장) + 새니타이즈(script 제거)
       const marpDoc = '---\\nmarp: true\\n---\\n\\n# 슬라이드 1\\n\\n---\\n\\n# 슬라이드 2';
@@ -285,6 +315,9 @@ app.whenReady().then(async () => {
         reHydrateOk,
         viewBarOk,
         memoizeOk,
+        diagramSanitizeOk,
+        sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
+        mermaidFO, mermaidLabelOk, d2LabelOk, d2FO,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -332,6 +365,10 @@ app.whenReady().then(async () => {
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
     if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');
+    if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
+    if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
+    if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');
+    console.log(`다이어그램 라벨: mermaid(FO=${result.mermaidFO}) OK, d2(FO=${result.d2FO}) OK`);
   } catch (e) {
     fail(String(e));
   }

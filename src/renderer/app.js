@@ -4,7 +4,7 @@
 import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
 import { renderMarkdown, makeResolver } from './markdown.js';
-import { hydrateDiagrams } from './diagrams/index.js';
+import { hydrateDiagrams, registerDiagram } from './diagrams/index.js';
 import { hasMarpFrontmatter, renderMarp } from './marp.js';
 import { getSetting, setSetting } from './settings.js';
 import { scrollbarCss } from './scrollbar-css.js';
@@ -942,4 +942,4 @@ ${lines.map(
 customElements.define('mdv-app', MdvApp);
 
 // 헤드리스 스모크/디버그용 훅
-window.__mdvTest = { renderMarkdown, makeResolver, hydrateDiagrams, hasMarpFrontmatter, renderMarp };
+window.__mdvTest = { renderMarkdown, makeResolver, hydrateDiagrams, registerDiagram, hasMarpFrontmatter, renderMarp };

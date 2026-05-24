@@ -1,6 +1,21 @@
 // 다이어그램 렌더러 레지스트리 + hydration.
 // markdown.js 가 만든 .mdv-diagram placeholder 를 렌더 후 비동기로 그림으로 치환한다.
 // 엔진별 렌더러는 registerDiagram(lang, fn) 으로 등록. fn(src, el) => SVG문자열 | Node.
+import DOMPurify from '../../../vendor/dompurify.js';
+
+// 신뢰않는 엔진(d2·plantuml)의 문자열 SVG 산출물 새니타이즈. 이들은 신뢰않는 .md
+// 소스를 SVG 로 변환하므로 script/이벤트핸들러/javascript: 링크가 섞일 수 있다.
+// el.innerHTML 주입 전 통과시킨다(노트 본문 살균과 동일 방어선).
+// 통합 프로파일 + foreignobject 보존 설정(marp.js 와 동일). d2/plantuml 은 <text>
+// 기반이라 실제론 foreignObject 를 안 쓰지만, 향후 엔진 확장 대비 보존 설정 유지.
+// (foreignObject htmlLabels 를 쓰는 mermaid 는 strict 자체살균이라 trusted 로 면제 —
+//  DOMPurify 가 SVG 네임스페이스 안의 HTML 자식을 제거해 라벨이 사라지기 때문.)
+function sanitizeDiagramSvg(svg) {
+  return DOMPurify.sanitize(svg, {
+    ADD_TAGS: ['foreignobject', 'use'],
+    ADD_ATTR: ['viewBox', 'preserveAspectRatio'],
+  });
+}
 
 const renderers = new Map();
 // 렌더 결과(SVG 문자열) 메모이즈: key = lang + '\n' + src.
@@ -8,8 +23,11 @@ const renderers = new Map();
 // 시간초과/중복호출 버그 방지, 토글 왕복 비용 0.
 const renderCache = new Map();
 
-export function registerDiagram(lang, fn) {
-  renderers.set(lang, fn);
+// trusted:true 인 엔진은 자체적으로 안전한 SVG 를 보장하므로 추가 살균을 건너뛴다.
+// (mermaid securityLevel:strict 가 대표 — 살균이 foreignObject htmlLabels 를 지워
+//  라벨이 사라지는 회귀를 막기 위해 면제). 미지정(신뢰않음) 엔진은 주입 전 살균.
+export function registerDiagram(lang, fn, opts = {}) {
+  renderers.set(lang, { fn, trusted: !!opts.trusted });
 }
 
 /** root 하위의 모든 다이어그램 placeholder 를 렌더한다 (이미 한 것은 건너뜀). */
@@ -25,14 +43,15 @@ async function hydrateOne(el) {
   const lang = el.dataset.lang;
   const srcEl = el.querySelector('.mdv-diagram-src');
   const src = (srcEl ? srcEl.textContent : el.textContent) || '';
-  const fn = renderers.get(lang);
+  const entry = renderers.get(lang);
 
-  if (!fn) {
+  if (!entry) {
     renderError(el, lang, `미지원 다이어그램 엔진: ${lang}`, src);
     return;
   }
+  const { fn, trusted } = entry;
 
-  // 메모이즈 히트: 엔진 재호출 없이 즉시 (로딩 표시도 생략)
+  // 메모이즈 히트: 엔진 재호출 없이 즉시 (로딩 표시도 생략). 캐시값은 이미 살균됨.
   const cacheKey = lang + '\n' + src;
   if (renderCache.has(cacheKey)) {
     el.innerHTML = renderCache.get(cacheKey);
@@ -46,8 +65,11 @@ async function hydrateOne(el) {
     if (result === undefined || result === null) return;
     el.replaceChildren();
     if (typeof result === 'string') {
-      el.innerHTML = result;
-      renderCache.set(cacheKey, result); // 문자열 결과만 캐시
+      // 신뢰않는 엔진(d2/plantuml)의 문자열 SVG 는 주입 전 살균(XSS 방어).
+      // 신뢰 엔진(mermaid strict)은 자체 살균 보장 + foreignObject 라벨 보존 위해 면제.
+      const safe = trusted ? result : sanitizeDiagramSvg(result);
+      el.innerHTML = safe;
+      renderCache.set(cacheKey, safe);
     } else if (result instanceof Node) {
       el.appendChild(result);
     }
