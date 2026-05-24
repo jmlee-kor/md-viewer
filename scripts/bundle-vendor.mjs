@@ -30,6 +30,8 @@ const targets = [
   // D2: browser 빌드는 wasm+worker 모두 인라인(자체 포함, fetch 없음).
   { out: 'd2.js', contents: `export { D2 } from '@terrastruct/d2';` },
   { out: 'marp.js', contents: `export { Marp } from '@marp-team/marp-core';` },
+  // highlight.js: common 서브셋(~40개 언어). 코드블록 syntax highlight.
+  { out: 'highlight.js', contents: `export { default } from 'highlight.js/lib/common';` },
 ];
 
 for (const t of targets) {

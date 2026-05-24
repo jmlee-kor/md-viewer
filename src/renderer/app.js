@@ -719,6 +719,65 @@ class MdvApp extends LitElement {
       background: none;
       padding: 0;
     }
+    .note pre.hljs {
+      padding: 0.9rem;
+    }
+    .note pre.hljs code {
+      tab-size: 4;
+    }
+    /* highlight.js 토큰 색 (github-dark 계열, .note 스코프) */
+    .note .hljs {
+      color: #c9d1d9;
+    }
+    .note .hljs-comment,
+    .note .hljs-quote {
+      color: #8b949e;
+      font-style: italic;
+    }
+    .note .hljs-keyword,
+    .note .hljs-selector-tag,
+    .note .hljs-built_in,
+    .note .hljs-name,
+    .note .hljs-tag {
+      color: #ff7b72;
+    }
+    .note .hljs-string,
+    .note .hljs-attr,
+    .note .hljs-template-tag,
+    .note .hljs-regexp,
+    .note .hljs-meta .hljs-string {
+      color: #a5d6ff;
+    }
+    .note .hljs-number,
+    .note .hljs-literal,
+    .note .hljs-variable,
+    .note .hljs-template-variable {
+      color: #79c0ff;
+    }
+    .note .hljs-title,
+    .note .hljs-section,
+    .note .hljs-selector-id {
+      color: #d2a8ff;
+    }
+    .note .hljs-type,
+    .note .hljs-symbol,
+    .note .hljs-bullet,
+    .note .hljs-meta,
+    .note .hljs-attribute {
+      color: #ffa657;
+    }
+    .note .hljs-emphasis {
+      font-style: italic;
+    }
+    .note .hljs-strong {
+      font-weight: bold;
+    }
+    .note .hljs-addition {
+      color: #aff5b4;
+    }
+    .note .hljs-deletion {
+      color: #ffdcd7;
+    }
     .note blockquote {
       border-left: 3px solid var(--accent, #569cd6);
       margin: 0;

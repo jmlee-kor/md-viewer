@@ -3,6 +3,21 @@
 
 import MarkdownIt from '../../vendor/markdown-it.js';
 import DOMPurify from '../../vendor/dompurify.js';
+import hljs from '../../vendor/highlight.js';
+
+// 코드블록 syntax highlight. lang 인식되면 hljs 토큰 span, 아니면 기본 이스케이프.
+// 다이어그램 fence 는 diagramFencePlugin 이 먼저 가로채므로 여기 안 옴.
+function highlightCode(str, lang) {
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      const out = hljs.highlight(str, { language: lang, ignoreIllegals: true }).value;
+      return `<pre class="hljs"><code class="language-${lang}">${out}</code></pre>`;
+    } catch {
+      /* fall through */
+    }
+  }
+  return ''; // markdown-it 기본 이스케이프 fence
+}
 
 // --- 위키링크 해석 유틸 (main 의 link-index.js 와 동일 규칙) ---
 
@@ -235,6 +250,7 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true,
   breaks: false,
+  highlight: highlightCode,
 })
   .use(wikilinkPlugin)
   .use(diagramFencePlugin)
