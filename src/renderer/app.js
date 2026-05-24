@@ -275,9 +275,46 @@ class MdvApp extends LitElement {
       background: #1e1e1e;
     }
     .content {
-      overflow: auto;
+      display: flex;
+      flex-direction: column;
       min-height: 0;
       min-width: 0;
+    }
+    .view-scroll {
+      flex: 1 1 auto;
+      overflow: auto;
+      min-height: 0;
+    }
+    /* 콘텐츠 상단 토글 바 */
+    .view-bar {
+      flex: 0 0 auto;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.35rem 0.75rem;
+      border-bottom: 1px solid #333;
+      background: #232323;
+    }
+    .tabs {
+      display: inline-flex;
+      border: 1px solid #3a3d41;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .tab {
+      background: #2a2c2f;
+      color: var(--muted, #9aa0a6);
+      border: 0;
+      padding: 3px 12px;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .tab:hover {
+      color: var(--fg, #d4d4d4);
+    }
+    .tab.active {
+      background: var(--accent, #569cd6);
+      color: #fff;
     }
     .note {
       padding: 1.5rem 2.5rem;
@@ -668,6 +705,12 @@ class MdvApp extends LitElement {
     this._renderNoteHtml();
   }
 
+  _setMarpPlain(plain) {
+    if (this._marpAsPlain === plain) return;
+    this._marpAsPlain = plain;
+    this._renderNoteHtml();
+  }
+
   /** mermaid 테마 변경 → 설정 저장 + 보이는 노트 다이어그램 재렌더(강제 rebuild) */
   _onMermaidTheme(e) {
     setSetting('mermaidTheme', e.target.value);
@@ -732,27 +775,52 @@ ${lines.map(
             : html`<div class="empty">vault 없음</div>`}
         </aside>
         <div class="content">
-          ${this._error
-            ? html`<div class="error">${this._error}</div>`
-            : this._selected && this._rawView
-              ? this._renderRaw()
-              : this._marpSrc
-                ? this._marpAsPlain
-                  ? html`<article class="note" @click=${this._onNoteClick}>
-                      ${unsafeHTML(this._noteHtml)}
-                    </article>`
-                  : html`<mdv-deck .src=${this._marpSrc}></mdv-deck>`
-                : this._selected
-                  ? html`
-                    <article class="note" @click=${this._onNoteClick}>
-                      ${unsafeHTML(this._noteHtml)}
-                    </article>
-                    ${this._renderBacklinks()}
-                  `
-                : html`<div class="empty">노트를 선택하세요</div>`}
+          ${this._selected ? this._renderViewBar() : ''}
+          <div class="view-scroll">
+            ${this._error
+              ? html`<div class="error">${this._error}</div>`
+              : this._selected && this._rawView
+                ? this._renderRaw()
+                : this._marpSrc
+                  ? this._marpAsPlain
+                    ? html`<article class="note" @click=${this._onNoteClick}>
+                        ${unsafeHTML(this._noteHtml)}
+                      </article>`
+                    : html`<mdv-deck .src=${this._marpSrc}></mdv-deck>`
+                  : this._selected
+                    ? html`
+                      <article class="note" @click=${this._onNoteClick}>
+                        ${unsafeHTML(this._noteHtml)}
+                      </article>
+                      ${this._renderBacklinks()}
+                    `
+                  : html`<div class="empty">노트를 선택하세요</div>`}
+          </div>
         </div>
       </div>
       ${this._renderMenu()}
+    `;
+  }
+
+  /** 콘텐츠 상단 토글 바: 렌더↔원본, (marp일 때) 슬라이드↔문서 */
+  _renderViewBar() {
+    return html`
+      <div class="view-bar">
+        <div class="tabs">
+          <button class="tab ${!this._rawView ? 'active' : ''}" @click=${() => (this._rawView = false)}>렌더</button>
+          <button class="tab ${this._rawView ? 'active' : ''}" @click=${() => (this._rawView = true)}>원본</button>
+        </div>
+        ${this._marpSrc
+          ? html`<div class="tabs">
+              <button class="tab ${!this._marpAsPlain ? 'active' : ''}" @click=${() => this._setMarpPlain(false)}>
+                슬라이드
+              </button>
+              <button class="tab ${this._marpAsPlain ? 'active' : ''}" @click=${() => this._setMarpPlain(true)}>
+                문서
+              </button>
+            </div>`
+          : ''}
+      </div>
     `;
   }
 
@@ -783,16 +851,6 @@ ${lines.map(
                   </div>`
                 )}
               </div>`
-            : ''}
-          ${this._marpSrc
-            ? html`<button class="tbtn" @click=${this._toggleMarpView}>
-                ${this._marpAsPlain ? '◫ 슬라이드로' : '▤ 문서로'}
-              </button>`
-            : ''}
-          ${this._selected
-            ? html`<button class="tbtn" @click=${this._toggleRaw}>
-                ${this._rawView ? '📖 렌더 보기' : '📄 원본 보기'}
-              </button>`
             : ''}
           <label
             >mermaid 테마

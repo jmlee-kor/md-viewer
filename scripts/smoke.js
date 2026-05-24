@@ -140,7 +140,7 @@ app.whenReady().then(async () => {
       // 독립 스크롤: 사이드바/콘텐츠가 각자 bounded scroll container 이고 독립적인가
       const appEl = document.querySelector('mdv-app');
       const sb = appEl.shadowRoot.querySelector('.sidebar');
-      const ct = appEl.shadowRoot.querySelector('.content');
+      const ct = appEl.shadowRoot.querySelector('.view-scroll'); // 스크롤 컨테이너 (상단 토글바 분리 후)
       const tall = () => { const d = document.createElement('div'); d.style.height = '3000px'; d.textContent = '.'; return d; };
       sb.appendChild(tall());
       ct.appendChild(tall());
@@ -228,6 +228,9 @@ app.whenReady().then(async () => {
       const svgAfter = await waitSvg();
       const reHydrateOk = svgBefore && svgAfter;
 
+      // 콘텐츠 상단 토글 바: 노트 선택 시 렌더/원본 탭 노출
+      const viewBarOk = appEl.shadowRoot.querySelectorAll('.view-bar .tab').length >= 2;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -267,6 +270,7 @@ app.whenReady().then(async () => {
         titlebarOk,
         marpExportOk,
         reHydrateOk,
+        viewBarOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -311,6 +315,7 @@ app.whenReady().then(async () => {
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
+    if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
   } catch (e) {
     fail(String(e));
   }
