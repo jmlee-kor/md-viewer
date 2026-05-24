@@ -32,6 +32,8 @@ plantuml.setBaseDir(
 let mainWindow = null;
 let currentVaultRoot = null;
 let currentIndex = null;
+let currentContents = {}; // relPath -> 원문 (전문 검색용, main 보관 — 렌더러로 전송 안 함)
+let currentTitles = {};
 /** @type {fs.FSWatcher | null} */
 let watcher = null;
 
@@ -68,8 +70,14 @@ async function loadVault(root) {
   currentVaultRoot = root;
   const tree = await vault.scanVault(root);
   const files = linkIndex.flatten(tree);
-  currentIndex = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
-  return { root, tree, index: currentIndex };
+  const index = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
+  // 본문(contents)은 검색용으로 main 에 보관하고 렌더러 payload 에서는 제외
+  // (대용량 vault 에서 매 watch 변경마다 본문 전체를 IPC 로 보내는 비용 회피).
+  currentContents = index.contents;
+  currentTitles = index.titles;
+  const { contents, ...indexForRenderer } = index;
+  currentIndex = indexForRenderer;
+  return { root, tree, index: indexForRenderer };
 }
 
 /** 재귀 파일 감시. 변경 시 디바운스 후 재스캔 → 렌더러 통지. (Node 빌트인, 의존성 0) */
@@ -124,6 +132,11 @@ ipcMain.handle('note:read', async (_e, relPath) => {
   if (!currentVaultRoot) throw new Error('vault 미선택');
   return vault.readNote(currentVaultRoot, relPath);
 });
+
+// --- IPC: 전문 검색 (main 보관 contents in-memory 검색) ---
+ipcMain.handle('vault:search', (_e, query) =>
+  linkIndex.searchContent(currentContents, currentTitles, query)
+);
 
 // --- IPC: PlantUML 렌더 (java -jar plantuml.jar -pipe) ---
 ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));

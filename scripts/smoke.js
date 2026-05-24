@@ -8,11 +8,29 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
 const plantuml = require('../src/main/plantuml');
 const resProtocol = require('../src/main/res-protocol');
+const vault = require('../src/main/vault');
+const linkIndex = require('../src/main/link-index');
 
 const SAMPLE_VAULT = path.join(__dirname, '..', 'sample-vault');
 
 // 실제 main.js 와 동일하게 PlantUML IPC 핸들러 등록 (전체 경로 검증용)
 ipcMain.handle('plantuml:render', (_e, src) => plantuml.render(src));
+
+// vault IPC (전문 검색/노트 읽기 전체 경로 검증용). main.js 와 동일 모듈 사용.
+let smokeContents = {};
+let smokeTitles = {};
+ipcMain.handle('vault:openPath', async (_e, root) => {
+  const tree = await vault.scanVault(root);
+  const files = linkIndex.flatten(tree);
+  const index = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
+  smokeContents = index.contents;
+  smokeTitles = index.titles;
+  const { contents, ...idx } = index;
+  return { root, tree, index: idx };
+});
+ipcMain.handle('note:read', (_e, rel) => vault.readNote(SAMPLE_VAULT, rel));
+ipcMain.handle('vault:search', (_e, q) => linkIndex.searchContent(smokeContents, smokeTitles, q));
+
 // mdv-res 프로토콜 (privileged 등록은 ready 이전)
 resProtocol.registerPrivileged();
 
@@ -221,6 +239,28 @@ app.whenReady().then(async () => {
       const recentName = appEl.shadowRoot.querySelector('.recent-open')?.textContent.trim();
       const recentOk = recentApi && recentItems === 2 && recentName === 'MyVault';
 
+      // 전문 검색: 실제 sample-vault 열기 → main 검색 IPC → 결과 패널 렌더 + 하이라이트
+      const searchApi = typeof window.mdv.searchVault === 'function';
+      await window.mdv.openVaultPath(${JSON.stringify(SAMPLE_VAULT)}); // main 측 contents 채움
+      const searchRaw = await window.mdv.searchVault('다이어그램');
+      const searchHasResult =
+        Array.isArray(searchRaw) &&
+        searchRaw.some((r) => r.relPath === 'Diagrams.md') &&
+        searchRaw.some((r) => r.snippets.some((s) => s.parts.some((p) => p.hit)));
+      // 미존재어는 0건
+      const searchEmpty = (await window.mdv.searchVault('존재안함zzqqxx')).length === 0;
+      // UI: 결과 패널(.sr-item) + 스니펫 하이라이트(mark) 렌더
+      appEl._tree = [{ name: 'Diagrams.md', type: 'file', relPath: 'Diagrams.md' }];
+      appEl._searchQuery = '다이어그램';
+      appEl._searchResults = searchRaw;
+      await appEl.updateComplete;
+      const srItems = appEl.shadowRoot.querySelectorAll('.sr-item').length;
+      const srMark = !!appEl.shadowRoot.querySelector('.sr-snip mark');
+      const searchOk = searchApi && searchHasResult && searchEmpty && srItems >= 1 && srMark;
+      appEl._searchQuery = ''; // 이후 테스트 위해 복원
+      appEl._searchResults = [];
+      await appEl.updateComplete;
+
       // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API
       const titlebar = appEl.shadowRoot.querySelector('.titlebar');
       const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
@@ -310,6 +350,7 @@ app.whenReady().then(async () => {
         autoOpenOk,
         rawOk,
         recentOk,
+        searchOk,
         titlebarOk,
         marpExportOk,
         reHydrateOk,
@@ -360,6 +401,7 @@ app.whenReady().then(async () => {
     if (!result.autoOpenOk) fail('시작 시 자동열기 토글 체크박스 없음');
     if (!result.rawOk) fail('md 원본(raw) 보기 렌더 실패');
     if (!result.recentOk) fail('최근 vault 리스트 실패');
+    if (!result.searchOk) fail('전문 검색 실패 (IPC/결과/하이라이트/결과패널)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');

@@ -39,7 +39,32 @@ const ROOT = path.join(__dirname, '..', 'sample-vault');
   const diagBack = (index.backlinks['Diagrams.md'] || []).map((b) => b.from);
   assert.ok(diagBack.includes('Welcome.md'), 'Diagrams 백링크에 Welcome 포함');
 
-  console.log('INDEX TEST PASS ✅ (resolve 키', Object.keys(index.resolve).length, ', 백링크 대상', Object.keys(index.backlinks).length, ')');
+  // --- 전문 검색 ---
+  assert.ok(index.contents && index.contents['Diagrams.md'], 'buildIndex 가 contents 수집');
+
+  const sr = linkIndex.searchContent(index.contents, index.titles, '다이어그램');
+  assert.ok(sr.length >= 1, '본문 검색 결과 있음');
+  const diag = sr.find((r) => r.relPath === 'Diagrams.md');
+  assert.ok(diag, 'Diagrams.md 가 "다이어그램" 검색 결과에 포함');
+  assert.ok(diag.snippets.length >= 1, '스니펫 생성됨');
+  assert.ok(
+    diag.snippets.some((s) => s.parts.some((p) => p.hit && /다이어그램/.test(p.text))),
+    '스니펫에 하이라이트(hit) parts 존재'
+  );
+
+  // 제목 매치 우선 랭킹: basename "Diagrams" 검색 → Diagrams.md 가 titleHit + 최상위
+  const sr2 = linkIndex.searchContent(index.contents, index.titles, 'diagrams');
+  assert.ok(sr2[0] && sr2[0].relPath === 'Diagrams.md' && sr2[0].titleHit, '제목 매치 우선 랭킹');
+
+  // AND 매칭: 모든 term 이 있어야 (둘 다 포함하는 Diagrams.md 는 히트)
+  const sr3 = linkIndex.searchContent(index.contents, index.titles, '다이어그램 mermaid');
+  assert.ok(sr3.some((r) => r.relPath === 'Diagrams.md'), 'AND 매칭 — 두 term 모두 포함 노트');
+
+  // 경계: 결과 없음 / 최소 길이 미만
+  assert.equal(linkIndex.searchContent(index.contents, index.titles, '존재안함zzqqxx').length, 0, '미존재어 → 0');
+  assert.equal(linkIndex.searchContent(index.contents, index.titles, 'a').length, 0, '1글자 → 0(미검색)');
+
+  console.log('INDEX TEST PASS ✅ (resolve 키', Object.keys(index.resolve).length, ', 백링크 대상', Object.keys(index.backlinks).length, ', 검색 contents', Object.keys(index.contents).length, ')');
 })().catch((e) => {
   console.error('INDEX TEST FAIL:', e.message);
   process.exit(1);

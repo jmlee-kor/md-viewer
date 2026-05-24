@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('mdv', {
   openVaultPath: (root) => ipcRenderer.invoke('vault:openPath', root),
   /** vault 내부 노트 읽기 → 원문 문자열 */
   readNote: (relPath) => ipcRenderer.invoke('note:read', relPath),
+  /** 전문 검색 → [{relPath, title, count, titleHit, snippets}] (랭킹순) */
+  searchVault: (query) => ipcRenderer.invoke('vault:search', query),
   /** PlantUML 원문 → { ok, svg } | { ok:false, error } */
   renderPlantUML: (src) => ipcRenderer.invoke('plantuml:render', src),
   /** Marp export: format(pdf|html) + {html, css, title} → { ok, path } | { canceled } */

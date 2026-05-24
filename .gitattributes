@@ -1,5 +1,13 @@
 # 텍스트 파일은 저장소에 LF로 정규화 (CRLF 경고 제거)
 * text=auto eol=lf
+# 소스는 항상 텍스트로 diff (과거 blob의 NUL 등으로 binary 오판정 방지)
+*.js text diff
+*.cjs text diff
+*.mjs text diff
+*.json text diff
+*.css text diff
+*.html text diff
+*.md text diff
 *.png binary
 *.jpg binary
 *.wasm binary

@@ -27,6 +27,8 @@ class MdvApp extends LitElement {
     _rawView: { state: true },
     _recent: { state: true },
     _maximized: { state: true },
+    _searchQuery: { state: true },
+    _searchResults: { state: true },
   };
 
   static styles = [
@@ -330,6 +332,92 @@ class MdvApp extends LitElement {
       color: var(--muted, #9aa0a6);
       padding: 2rem;
     }
+    /* 사이드바 전문 검색 */
+    .search {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      background: #1e1e1e;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.3rem;
+    }
+    .search input {
+      flex: 1 1 auto;
+      min-width: 0;
+      background: #2a2c2f;
+      color: var(--fg, #d4d4d4);
+      border: 1px solid #3a3d41;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 0.85rem;
+    }
+    .search input:focus {
+      outline: none;
+      border-color: var(--accent, #569cd6);
+    }
+    .search-clear {
+      background: none;
+      border: 0;
+      color: var(--muted, #9aa0a6);
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 2px 4px;
+    }
+    .search-clear:hover {
+      color: var(--fg, #d4d4d4);
+    }
+    .sr-count {
+      font-size: 0.72rem;
+      color: var(--muted, #9aa0a6);
+      padding: 0 0.3rem 0.3rem;
+    }
+    .search-results {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .sr-item {
+      cursor: pointer;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+    }
+    .sr-item:hover {
+      background: #2a2c2f;
+    }
+    .sr-item.active {
+      background: #2d3a4a;
+    }
+    .sr-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--fg, #d4d4d4);
+    }
+    .sr-path {
+      font-size: 0.72rem;
+      color: var(--muted, #9aa0a6);
+      margin-bottom: 2px;
+    }
+    .sr-snip {
+      font-size: 0.75rem;
+      color: #b8bcc0;
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sr-snip mark {
+      background: rgba(86, 156, 214, 0.35);
+      color: inherit;
+      border-radius: 2px;
+    }
+    .sr-empty {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.82rem;
+      padding: 0.5rem;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -550,6 +638,9 @@ class MdvApp extends LitElement {
     this._backlinks = [];
     this._error = null;
     this._recent = getSetting('recentVaults', []);
+    this._searchQuery = '';
+    this._searchResults = [];
+    this._searchTimer = null;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -644,6 +735,30 @@ class MdvApp extends LitElement {
 
   _vaultName(p) {
     return p.split(/[\\/]/).filter(Boolean).pop() || p;
+  }
+
+  /** 전문 검색 입력(디바운스) → main 에 검색 위임 → 결과 패널 갱신 */
+  _onSearchInput(e) {
+    const q = e.target.value;
+    this._searchQuery = q;
+    clearTimeout(this._searchTimer);
+    if (!q.trim()) {
+      this._searchResults = [];
+      return;
+    }
+    this._searchTimer = setTimeout(async () => {
+      try {
+        this._searchResults = await window.mdv.searchVault(q);
+      } catch {
+        this._searchResults = [];
+      }
+    }, 150);
+  }
+
+  _clearSearch() {
+    clearTimeout(this._searchTimer);
+    this._searchQuery = '';
+    this._searchResults = [];
   }
 
   async _onSelect(relPath) {
@@ -807,8 +922,24 @@ ${lines.map(
       <div class="body">
         <aside class="sidebar">
           ${this._tree.length
-            ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
-            : html`<div class="empty">vault 없음</div>`}
+            ? html`<div class="search">
+                <input
+                  type="search"
+                  placeholder="vault 검색…"
+                  .value=${this._searchQuery}
+                  @input=${this._onSearchInput}
+                  aria-label="전문 검색"
+                />
+                ${this._searchQuery
+                  ? html`<button class="search-clear" title="검색 지우기" @click=${this._clearSearch}>✕</button>`
+                  : ''}
+              </div>`
+            : ''}
+          ${this._searchQuery.trim()
+            ? this._renderSearchResults()
+            : this._tree.length
+              ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
+              : html`<div class="empty">vault 없음</div>`}
         </aside>
         <div class="content">
           ${this._selected ? this._renderViewBar() : ''}
@@ -916,6 +1047,36 @@ ${lines.map(
           </div>
           <!-- 최소화/최대화/닫기는 커스텀 타이틀바로 이동 (중복 제거) -->
         </div>
+      </div>
+    `;
+  }
+
+  /** 전문 검색 결과 패널 (트리 대신). 스니펫은 텍스트로만 그려 살균 불필요. */
+  _renderSearchResults() {
+    const rs = this._searchResults;
+    if (!rs.length) {
+      return html`<div class="sr-empty">
+        ${this._searchQuery.trim().length < 2 ? '2글자 이상 입력하세요' : '결과 없음'}
+      </div>`;
+    }
+    return html`
+      <div class="sr-count">${rs.length}개 노트</div>
+      <div class="search-results">
+        ${rs.map(
+          (r) => html`<div
+            class="sr-item ${this._selected === r.relPath ? 'active' : ''}"
+            title=${r.relPath}
+            @click=${() => this._onSelect(r.relPath)}
+          >
+            <div class="sr-title">${r.title}</div>
+            ${r.relPath.includes('/') ? html`<div class="sr-path">${r.relPath}</div>` : ''}
+            ${r.snippets.map(
+              (s) => html`<div class="sr-snip">
+                ${s.parts.map((p) => (p.hit ? html`<mark>${p.text}</mark>` : p.text))}
+              </div>`
+            )}
+          </div>`
+        )}
       </div>
     `;
   }
