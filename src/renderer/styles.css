@@ -18,7 +18,10 @@ body {
   font-family: "Segoe UI", system-ui, sans-serif;
 }
 
+/* 주의: 이 document 규칙의 display 는 컴포넌트의 :host display 를 덮어쓴다.
+   레이아웃(flex column)을 여기서 host 에 직접 지정해야 :host 와 충돌하지 않는다. */
 mdv-app {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }

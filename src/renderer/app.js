@@ -26,12 +26,13 @@ class MdvApp extends LitElement {
 
   static styles = css`
     :host {
-      display: grid;
-      grid-template-rows: auto 1fr;
+      display: flex;
+      flex-direction: column;
       height: 100%;
       color: var(--fg, #d4d4d4);
     }
     .toolbar {
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       gap: 0.75rem;
@@ -79,14 +80,17 @@ class MdvApp extends LitElement {
       white-space: nowrap;
     }
     .body {
+      flex: 1 1 auto;
+      min-height: 0;
       display: grid;
       grid-template-columns: 280px 1fr;
-      min-height: 0;
+      grid-template-rows: 100%;
       overflow: hidden;
     }
     .sidebar {
       overflow: auto;
       min-height: 0;
+      min-width: 0;
       padding: 0.6rem;
       border-right: 1px solid #333;
       background: #1e1e1e;
@@ -94,6 +98,7 @@ class MdvApp extends LitElement {
     .content {
       overflow: auto;
       min-height: 0;
+      min-width: 0;
     }
     .note {
       padding: 1.5rem 2.5rem;

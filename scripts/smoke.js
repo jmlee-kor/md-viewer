@@ -131,6 +131,22 @@ app.whenReady().then(async () => {
       const marpNoJsHref = !/href\\s*=\\s*["']?\\s*javascript:/i.test(evilMarp.html);
       const marpSanitized = marpNoScript && marpNoJsHref;
 
+      // 독립 스크롤: 사이드바/콘텐츠가 각자 bounded scroll container 이고 독립적인가
+      const appEl = document.querySelector('mdv-app');
+      const sb = appEl.shadowRoot.querySelector('.sidebar');
+      const ct = appEl.shadowRoot.querySelector('.content');
+      const tall = () => { const d = document.createElement('div'); d.style.height = '3000px'; d.textContent = '.'; return d; };
+      sb.appendChild(tall());
+      ct.appendChild(tall());
+      void sb.offsetHeight; void ct.offsetHeight; // 강제 reflow
+      const sbBounded = sb.clientHeight > 0 && sb.clientHeight < 2500;
+      const ctBounded = ct.clientHeight > 0 && ct.clientHeight < 2500;
+      const sbScrolls = sb.scrollHeight > sb.clientHeight + 200;
+      const ctScrolls = ct.scrollHeight > ct.clientHeight + 200;
+      sb.scrollTop = 400;
+      const scrollIndependent = sb.scrollTop > 0 && ct.scrollTop === 0;
+      const scrollOk = sbBounded && ctBounded && sbScrolls && ctScrolls && scrollIndependent;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -159,6 +175,12 @@ app.whenReady().then(async () => {
         marpSanitized,
         imgRewritten,
         imgServed,
+        scrollOk,
+        scrollDiag: {
+          hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
+          bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
+          sbC: sb.clientHeight, sbS: sb.scrollHeight, ctC: ct.clientHeight,
+        },
       };
     })()`);
 
@@ -188,6 +210,7 @@ app.whenReady().then(async () => {
     if (!result.marpSanitized) fail('Marp 살균 실패 — <script> 통과');
     if (!result.imgRewritten) fail('로컬 이미지 src → mdv-res 치환 실패');
     if (!result.imgServed) fail('mdv-res 프로토콜 이미지 서빙 실패');
+    if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);
   } catch (e) {
     fail(String(e));
   }
