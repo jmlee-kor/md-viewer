@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,5 +21,25 @@ if (!fs.existsSync(src)) {
 fs.rmSync(dest, { recursive: true, force: true });
 fs.cpSync(src, dest, { recursive: true });
 console.log(`설치 완료: ${dest}`);
-console.log('PATH 에 위 폴더가 있으면 어디서든 `md-viewer` 로 실행됩니다.');
+
+// 사용자 PATH 에 설치 폴더 등록 (Windows, 중복 방지, 최초 1회만 실제 추가)
+if (process.platform === 'win32') {
+  try {
+    const ps = `$d='${dest.replace(/'/g, "''")}'; ` +
+      `$c=[Environment]::GetEnvironmentVariable('Path','User'); ` +
+      `if($c -notlike "*$d*"){ $n= if([string]::IsNullOrEmpty($c)){$d}else{$c.TrimEnd(';')+';'+$d}; ` +
+      `[Environment]::SetEnvironmentVariable('Path',$n,'User'); 'ADDED' } else { 'EXISTS' }`;
+    const out = execFileSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8' }).trim();
+    console.log(
+      out === 'ADDED'
+        ? 'PATH(User) 등록됨 — 새 터미널부터 `md-viewer` 로 실행 가능'
+        : 'PATH(User) 에 이미 등록됨'
+    );
+  } catch (e) {
+    console.warn('PATH 자동 등록 실패(수동 등록 필요):', e.message);
+  }
+} else {
+  console.log(`PATH 에 추가하세요: ${dest}`);
+}
+
 console.log('PlantUML 사용 시 tools/ (jre, plantuml.jar) 를 이 폴더에 두세요.');

@@ -85,21 +85,14 @@ Graphviz) 를 반입합니다. 자세히는 [`tools/README.md`](tools/README.md)
 포장합니다. vendor/ 와 src/ 가 app.asar 에 포함됩니다.
 
 ```bash
-npm run dist            # → dist/win-unpacked/md-viewer.exe (unpacked 폴더)
-npm run install:local   # 빌드 + %LOCALAPPDATA%\Programs\md-viewer 로 설치
+npm install            # 의존성 (인터넷 필요)
+npm run install:local  # 빌드 + %LOCALAPPDATA%\Programs\md-viewer 설치 + PATH 등록
 ```
 
-`install:local` 은 안정적 사용자 위치에 설치합니다. 그 폴더를 **사용자 PATH** 에
-한 번 추가하면 어디서든 `md-viewer` 로 실행됩니다 (PATH 등록은 최초 1회).
-
-```powershell
-$dest = "$env:LOCALAPPDATA\Programs\md-viewer"
-$cur = [Environment]::GetEnvironmentVariable('Path','User')
-if ($cur -notlike "*$dest*") {
-  [Environment]::SetEnvironmentVariable('Path', "$($cur.TrimEnd(';'));$dest", 'User')
-}
-# 새 터미널부터 적용
-```
+`install:local` 이 **빌드 → 설치 → 사용자 PATH 등록** 을 한 번에 처리합니다
+(PATH 는 중복 방지, 최초 1회만 실제 추가). **새 터미널**부터 어디서든
+`md-viewer` 로 실행됩니다. 재빌드 시에도 `install:local` 만 다시 돌리면 됩니다
+(PATH 는 이미 등록되어 있어 그대로).
 
 ### 패키징 모드의 PlantUML tools
 
