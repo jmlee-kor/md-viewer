@@ -422,6 +422,16 @@ app.whenReady().then(async () => {
       appEl._applyFontScale(1);
       const themeOk = themeLightOk && themeDarkOk && fontScaleOk;
 
+      // 노트 스크롤 위치 기억: 재방문 시 저장값을 복원 대상(_pendingScroll)으로
+      appEl._marpSrc = null;
+      appEl._searchTerms = [];
+      appEl._scrollPos.set('Welcome.md', 99);
+      appEl._selected = null;
+      const selPromise = appEl._onSelect('Welcome.md'); // 동기부에서 _pendingScroll 설정
+      const scrollMemOk = appEl._pendingScroll === 99;
+      await selPromise;
+      await appEl.updateComplete;
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -633,6 +643,7 @@ app.whenReady().then(async () => {
         tocOk,
         tagOk,
         themeOk,
+        scrollMemOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -706,6 +717,7 @@ app.whenReady().then(async () => {
     if (!result.tocOk) fail('아웃라인(TOC) 패널 실패');
     if (!result.tagOk) fail('태그 #tag 칩/필터 실패');
     if (!result.themeOk) fail('테마 토글/폰트 배율 실패');
+    if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

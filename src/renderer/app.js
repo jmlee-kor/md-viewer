@@ -1035,6 +1035,8 @@ class MdvApp extends LitElement {
     this._tocOpen = getSetting('tocOpen', false); // 아웃라인(TOC) 패널
     this._toc = [];
     this._tagFilter = null; // #tag 필터 (선택 시 사이드바에 해당 태그 노트 목록)
+    this._scrollPos = new Map(); // relPath → scrollTop (세션 내 스크롤 위치 기억)
+    this._pendingScroll = null;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1429,6 +1431,11 @@ class MdvApp extends LitElement {
 
   async _onSelect(relPath, searchTerms = null, heading = null) {
     const sameNote = this._selected === relPath && !this._marpSrc && !this._rawView;
+    // 떠나는 노트의 스크롤 위치 저장 (세션 내 복원용)
+    const vs = this.renderRoot.querySelector('.view-scroll');
+    if (vs && this._selected && !sameNote) this._scrollPos.set(this._selected, vs.scrollTop);
+    // 새 노트 복원 대상: 헤딩 앵커가 없을 때만 (헤딩/검색 스크롤이 우선)
+    this._pendingScroll = heading ? null : this._scrollPos.get(relPath) ?? 0;
     this._selected = relPath;
     this._error = null;
     this._searchTerms = searchTerms || []; // 트리/위키링크/백링크 경로는 하이라이트 없음
@@ -1559,6 +1566,12 @@ class MdvApp extends LitElement {
           this._pendingHeading = null;
         }
         this._buildToc(note); // 아웃라인(TOC) 갱신
+        // 스크롤 위치 복원 (헤딩 앵커/검색 스크롤이 없을 때만)
+        if (this._pendingScroll != null && !this._pendingHeading && !this._searchTerms.length) {
+          const vs = this.renderRoot.querySelector('.view-scroll');
+          if (vs) vs.scrollTop = this._pendingScroll;
+        }
+        this._pendingScroll = null;
       }
     }
     // 빠른 전환기: 열릴 때 입력 포커스 / 선택 이동 시 활성 항목 가시화
