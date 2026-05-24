@@ -22,6 +22,7 @@ class MdvApp extends LitElement {
     _error: { state: true },
     _marpSrc: { state: true },
     _marpAsPlain: { state: true },
+    _menuOpen: { state: true },
   };
 
   static styles = css`
@@ -29,55 +30,98 @@ class MdvApp extends LitElement {
       display: flex;
       flex-direction: column;
       height: 100%;
+      position: relative;
       color: var(--fg, #d4d4d4);
     }
-    .toolbar {
-      flex: 0 0 auto;
+    /* 좌하단 플로팅 메뉴 */
+    .menu {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      z-index: 20;
+    }
+    .menu-toggle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--accent, #569cd6);
+      color: #fff;
+      border: 0;
+      cursor: pointer;
+      font-size: 1.25rem;
+      line-height: 1;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+      transition: filter 0.15s, transform 0.15s;
+    }
+    .menu-toggle:hover {
+      filter: brightness(1.1);
+    }
+    .menu.open .menu-toggle {
+      transform: rotate(90deg);
+    }
+    .menu-panel {
+      position: absolute;
+      left: 0;
+      bottom: 54px;
       display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.4rem 0.75rem;
-      border-bottom: 1px solid #333;
+      flex-direction: column;
+      gap: 0.55rem;
+      min-width: 230px;
+      max-width: 320px;
+      padding: 0.8rem;
       background: #252526;
+      border: 1px solid #3a3d41;
+      border-radius: 10px;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transform: translateY(12px) scale(0.97);
+      transform-origin: bottom left;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .menu:hover .menu-panel,
+    .menu.open .menu-panel {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
     }
     button[data-open] {
       background: var(--accent, #569cd6);
       color: #fff;
       border: 0;
-      padding: 5px 12px;
-      border-radius: 5px;
+      padding: 7px 12px;
+      border-radius: 6px;
       cursor: pointer;
       font-size: 0.85rem;
     }
     button[data-open]:hover {
       filter: brightness(1.1);
     }
-    .spacer {
-      flex: 1;
+    .vault-path {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.78rem;
+      word-break: break-all;
     }
     .tbtn,
-    .toolbar select {
+    .menu-panel select {
       background: #3a3d41;
       color: var(--fg, #d4d4d4);
       border: 1px solid #4a4d51;
-      padding: 4px 10px;
-      border-radius: 5px;
+      padding: 6px 10px;
+      border-radius: 6px;
       cursor: pointer;
       font-size: 0.8rem;
     }
     .tbtn:hover {
       background: #45494e;
     }
-    .toolbar label {
+    .menu-panel label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
       color: var(--muted, #9aa0a6);
       font-size: 0.78rem;
-    }
-    .vault-path {
-      color: var(--muted, #9aa0a6);
-      font-size: 0.8rem;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
     .body {
       flex: 1 1 auto;
@@ -403,27 +447,6 @@ class MdvApp extends LitElement {
 
   render() {
     return html`
-      <div class="toolbar">
-        <button data-open @click=${this._openVault}>Vault 열기</button>
-        <span class="vault-path">${this._root ?? '폴더를 선택하세요'}</span>
-        <span class="spacer"></span>
-        ${this._marpSrc
-          ? html`<button class="tbtn" @click=${this._toggleMarpView}>
-              ${this._marpAsPlain ? '◫ 슬라이드로' : '▤ 문서로'}
-            </button>`
-          : ''}
-        <label
-          >mermaid
-          <select @change=${this._onMermaidTheme}>
-            ${MERMAID_THEMES.map(
-              (t) =>
-                html`<option value=${t} ?selected=${getSetting('mermaidTheme', 'dark') === t}>
-                  ${t}
-                </option>`
-            )}
-          </select>
-        </label>
-      </div>
       <div class="body">
         <aside class="sidebar">
           ${this._tree.length
@@ -447,6 +470,41 @@ class MdvApp extends LitElement {
                     ${this._renderBacklinks()}
                   `
                 : html`<div class="empty">노트를 선택하세요</div>`}
+        </div>
+      </div>
+      ${this._renderMenu()}
+    `;
+  }
+
+  _renderMenu() {
+    return html`
+      <div class="menu ${this._menuOpen ? 'open' : ''}">
+        <button
+          class="menu-toggle"
+          title="메뉴"
+          @click=${() => (this._menuOpen = !this._menuOpen)}
+        >
+          ☰
+        </button>
+        <div class="menu-panel">
+          <button data-open @click=${this._openVault}>Vault 열기</button>
+          <div class="vault-path">${this._root ?? '폴더를 선택하세요'}</div>
+          ${this._marpSrc
+            ? html`<button class="tbtn" @click=${this._toggleMarpView}>
+                ${this._marpAsPlain ? '◫ 슬라이드로' : '▤ 문서로'}
+              </button>`
+            : ''}
+          <label
+            >mermaid 테마
+            <select @change=${this._onMermaidTheme}>
+              ${MERMAID_THEMES.map(
+                (t) =>
+                  html`<option value=${t} ?selected=${getSetting('mermaidTheme', 'dark') === t}>
+                    ${t}
+                  </option>`
+              )}
+            </select>
+          </label>
         </div>
       </div>
     `;

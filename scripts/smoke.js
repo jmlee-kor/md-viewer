@@ -159,6 +159,13 @@ app.whenReady().then(async () => {
       const nestedTree = t.shadowRoot.querySelector('details > mdv-tree');
       const treeIndent = !!nestedTree && parseFloat(getComputedStyle(nestedTree).paddingLeft) > 0;
 
+      // 플로팅 메뉴: 토글 버튼/패널 존재 + 클릭 시 open
+      const menuToggle = appEl.shadowRoot.querySelector('.menu-toggle');
+      const menuPanel = appEl.shadowRoot.querySelector('.menu-panel');
+      if (menuToggle) menuToggle.click();
+      await appEl.updateComplete;
+      const menuOk = !!menuToggle && !!menuPanel && !!appEl.shadowRoot.querySelector('.menu.open');
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -190,6 +197,7 @@ app.whenReady().then(async () => {
         scrollOk,
         treeIndent,
         taskOk,
+        menuOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -227,6 +235,7 @@ app.whenReady().then(async () => {
     if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);
     if (!result.treeIndent) fail('파일 트리 중첩 들여쓰기 실패');
     if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
+    if (!result.menuOk) fail('플로팅 메뉴 토글/패널 실패');
   } catch (e) {
     fail(String(e));
   }
