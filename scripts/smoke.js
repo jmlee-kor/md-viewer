@@ -112,7 +112,7 @@ app.whenReady().then(async () => {
       const plantumlSvg = !!pu.querySelector('.mdv-diagram svg');
       const plantumlErr = pu.querySelector('.mdv-diagram-msg')?.textContent?.split('\\n')[0] || null;
 
-      // Marp: frontmatter 감지 + 슬라이드 렌더(2장) + 살균(script 제거)
+      // Marp: frontmatter 감지 + 슬라이드 렌더(2장) + 새니타이즈(script 제거)
       const marpDoc = '---\\nmarp: true\\n---\\n\\n# 슬라이드 1\\n\\n---\\n\\n# 슬라이드 2';
       const marpDetected = window.__mdvTest.hasMarpFrontmatter(marpDoc);
       const notMarp = window.__mdvTest.hasMarpFrontmatter('# 그냥 노트');
@@ -300,7 +300,7 @@ app.whenReady().then(async () => {
     if (result.btnText !== 'Vault 열기') fail(`버튼 텍스트 비정상: ${result.btnText}`);
     if (!result.mdHasH1) fail('markdown h1 렌더 실패');
     if (!result.mdStrong) fail('markdown strong 렌더 실패');
-    if (!result.mdSanitized) fail('DOMPurify 살균 실패 — <script> 통과됨');
+    if (!result.mdSanitized) fail('DOMPurify 새니타이즈 실패 — <script> 통과됨');
     if (!result.wlResolved) fail('위키링크 해결 실패 — data-target 없음');
     if (!result.wlBroken) fail('미해결 위키링크 broken 표시 실패');
     if (!result.wlAlias) fail('위키링크 별칭 렌더 실패');
@@ -316,7 +316,7 @@ app.whenReady().then(async () => {
     if (result.notMarp) fail('Marp 오탐지 (일반 노트를 marp로 판정)');
     if (result.marpSectionCount !== 2) fail(`Marp 슬라이드 수 이상: ${result.marpSectionCount} (기대 2)`);
     if (!result.marpHasCss) fail('Marp CSS 미생성');
-    if (!result.marpSanitized) fail('Marp 살균 실패 — <script> 통과');
+    if (!result.marpSanitized) fail('Marp 새니타이즈 실패 — <script> 통과');
     if (!result.imgRewritten) fail('로컬 이미지 src → mdv-res 치환 실패');
     if (!result.imgServed) fail('mdv-res 프로토콜 이미지 서빙 실패');
     if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);

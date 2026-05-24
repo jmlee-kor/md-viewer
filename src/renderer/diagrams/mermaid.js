@@ -15,5 +15,5 @@ registerDiagram('mermaid', async (src) => {
   });
   const id = `mmd-${Date.now()}-${counter++}`;
   const { svg } = await mermaid.render(id, src);
-  return svg; // SVG 문자열 (mermaid 가 strict 모드로 살균)
+  return svg; // SVG 문자열 (mermaid 가 strict 모드로 새니타이즈)
 });

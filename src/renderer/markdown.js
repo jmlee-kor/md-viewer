@@ -1,4 +1,4 @@
-// Markdown 렌더 파이프라인: markdown-it (+위키링크 룰) → DOMPurify 살균.
+// Markdown 렌더 파이프라인: markdown-it (+위키링크 룰) → DOMPurify 새니타이즈.
 // 후속: 다이어그램 fence 디스패처가 여기에 붙는다.
 
 import MarkdownIt from '../../vendor/markdown-it.js';

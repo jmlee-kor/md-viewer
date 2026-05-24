@@ -772,7 +772,7 @@ class MdvApp extends LitElement {
     this._rawView = !this._rawView;
   }
 
-  /** 원문 마크다운 + 라인번호 (Lit 텍스트 보간으로 자동 이스케이프 → 살균 불필요) */
+  /** 원문 마크다운 + 라인번호 (Lit 텍스트 보간으로 자동 이스케이프 → 새니타이즈 불필요) */
   _renderRaw() {
     const lines = (this._src || '').split('\n');
     return html`<pre class="raw">

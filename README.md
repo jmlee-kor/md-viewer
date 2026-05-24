@@ -7,7 +7,7 @@
 - **런타임 외부 의존 0** — 모든 라이브러리는 `vendor/` 에 포함되어 `git pull` 로 따라온다.
 - **빌드는 외부 인터넷 PC에서만** — 폐쇄망 PC는 `git pull` + Electron 실행만.
 - **Electron 채택** — Windows 10 다수 + WebView2 미보장 환경이라 Chromium 자체 번들 필요 (Tauri 아님).
-- **보안 기본값** — contextIsolation/sandbox on, nodeIntegration off, 네트워크 차단(connect-src 'self'), 렌더 HTML DOMPurify 살균.
+- **보안 기본값** — contextIsolation/sandbox on, nodeIntegration off, 네트워크 차단(connect-src 'self'), 렌더 HTML DOMPurify 새니타이즈.
 
 ## 기능
 
