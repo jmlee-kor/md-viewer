@@ -198,6 +198,9 @@ app.whenReady().then(async () => {
       const marpOut = window.__mdvTest.renderMarp(marpDoc);
       const marpSectionCount = (marpOut.html.match(/<section/g) || []).length;
       const marpHasCss = marpOut.css.length > 100;
+      // 오프라인: 이모지/화살표가 twemoji CDN 이미지로 바뀌지 않아야 (폐쇄망 로드 실패 방지)
+      const marpEmoji = window.__mdvTest.renderMarp('---\\nmarp: true\\n---\\n# 화살표 ◀ ▶ 😀');
+      const marpOfflineOk = !/jsdelivr|twemoji/.test(marpEmoji.html);
 
       // 로컬 이미지: 상대경로 → mdv-res 치환 + 프로토콜이 실제 파일 서빙
       const imgHtml = window.__mdvTest.renderMarkdown('![x](assets/logo.svg)', { noteDir: '' });
@@ -432,6 +435,28 @@ app.whenReady().then(async () => {
       await selPromise;
       await appEl.updateComplete;
 
+      // 뒤로/앞으로 히스토리 (_selected 는 _onSelect 동기부에서 설정 → await 불필요)
+      appEl._history = [];
+      appEl._histIdx = -1;
+      appEl._selected = null;
+      appEl._marpSrc = null;
+      await appEl._onSelect('Welcome.md');
+      await appEl._onSelect('Diagrams.md');
+      await appEl._onSelect('Projects/Roadmap.md');
+      const histOpen = appEl._histIdx === 2 && appEl._history.length === 3;
+      appEl._goBack();
+      const histBack1 = appEl._selected === 'Diagrams.md' && appEl._histIdx === 1;
+      appEl._goBack();
+      const histBack2 = appEl._selected === 'Welcome.md' && appEl._histIdx === 0;
+      appEl._goForward();
+      const histFwd = appEl._selected === 'Diagrams.md' && appEl._histIdx === 1;
+      await appEl._onSelect('Slides.md'); // forward 가지 절단
+      const histTrunc = appEl._history.length === 3 && appEl._history[2] === 'Slides.md' && appEl._histIdx === 2;
+      const historyOk = histOpen && histBack1 && histBack2 && histFwd && histTrunc;
+      appEl._marpSrc = null;
+      appEl._selected = null;
+      await appEl.updateComplete;
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -624,6 +649,7 @@ app.whenReady().then(async () => {
         marpSectionCount,
         marpHasCss,
         marpSanitized,
+        marpOfflineOk,
         imgRewritten,
         imgServed,
         scrollOk,
@@ -644,6 +670,7 @@ app.whenReady().then(async () => {
         tagOk,
         themeOk,
         scrollMemOk,
+        historyOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -696,6 +723,7 @@ app.whenReady().then(async () => {
     if (result.marpSectionCount !== 2) fail(`Marp 슬라이드 수 이상: ${result.marpSectionCount} (기대 2)`);
     if (!result.marpHasCss) fail('Marp CSS 미생성');
     if (!result.marpSanitized) fail('Marp 새니타이즈 실패 — <script> 통과');
+    if (!result.marpOfflineOk) fail('Marp 이모지 twemoji CDN 의존 (오프라인 위반)');
     if (!result.imgRewritten) fail('로컬 이미지 src → mdv-res 치환 실패');
     if (!result.imgServed) fail('mdv-res 프로토콜 이미지 서빙 실패');
     if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);
@@ -718,6 +746,7 @@ app.whenReady().then(async () => {
     if (!result.tagOk) fail('태그 #tag 칩/필터 실패');
     if (!result.themeOk) fail('테마 토글/폰트 배율 실패');
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
+    if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

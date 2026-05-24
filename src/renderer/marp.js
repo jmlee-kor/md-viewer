@@ -6,7 +6,9 @@ let marp = null;
 function getMarp() {
   // inlineSVG:false → 슬라이드가 <svg><foreignObject> 없이 평범한 <section> 으로 출력.
   // (SVG 래핑 시 DOMPurify 가 네임스페이스 때문에 내부 HTML 을 제거함)
-  if (!marp) marp = new Marp({ inlineSVG: false });
+  // emoji unicode/shortcode:false → twemoji(jsdelivr CDN 이미지) 비활성. 오프라인 필수
+  // (이모지·화살표(◀▶ 등)를 CDN 이미지로 바꾸면 폐쇄망에서 로드 실패+CSP 차단).
+  if (!marp) marp = new Marp({ inlineSVG: false, emoji: { unicode: false, shortcode: false } });
   return marp;
 }
 
@@ -34,7 +36,7 @@ export function renderMarp(src) {
 let marpSvg = null;
 /** marp 원문 → { html, css } (각 슬라이드가 <svg data-marpit-svg>). SVG export 용. */
 export function renderMarpSvg(src) {
-  if (!marpSvg) marpSvg = new Marp({ inlineSVG: true });
+  if (!marpSvg) marpSvg = new Marp({ inlineSVG: true, emoji: { unicode: false, shortcode: false } });
   const { html, css } = marpSvg.render(src || '');
   return { html, css }; // 살균은 export 시 main 이 신뢰(자체 생성). 표시는 별도 renderMarp 경로 사용
 }

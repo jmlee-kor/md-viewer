@@ -41,6 +41,7 @@ class MdvApp extends LitElement {
     _tocOpen: { state: true },
     _toc: { state: true },
     _tagFilter: { state: true },
+    _histIdx: { state: true },
   };
 
   static styles = [
@@ -1037,6 +1038,8 @@ class MdvApp extends LitElement {
     this._tagFilter = null; // #tag 필터 (선택 시 사이드바에 해당 태그 노트 목록)
     this._scrollPos = new Map(); // relPath → scrollTop (세션 내 스크롤 위치 기억)
     this._pendingScroll = null;
+    this._history = []; // 방문 노트 relPath 스택 (뒤로/앞으로)
+    this._histIdx = -1;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1064,6 +1067,12 @@ class MdvApp extends LitElement {
       } else if (e.key === 'Escape' && this._lightboxOpen) {
         e.preventDefault();
         this._closeLightbox();
+      } else if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this._goBack();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        this._goForward();
       }
     };
     window.addEventListener('keydown', this._onKeydown);
@@ -1429,11 +1438,17 @@ class MdvApp extends LitElement {
     window.mdv.exportDiagram({ format: 'png', data: bytes, name: this._lightboxName });
   }
 
-  async _onSelect(relPath, searchTerms = null, heading = null) {
+  async _onSelect(relPath, searchTerms = null, heading = null, fromHistory = false) {
     const sameNote = this._selected === relPath && !this._marpSrc && !this._rawView;
     // 떠나는 노트의 스크롤 위치 저장 (세션 내 복원용)
     const vs = this.renderRoot.querySelector('.view-scroll');
     if (vs && this._selected && !sameNote) this._scrollPos.set(this._selected, vs.scrollTop);
+    // 히스토리 push (뒤로/앞으로 네비로 인한 호출은 제외)
+    if (!fromHistory && relPath !== this._history[this._histIdx]) {
+      if (this._histIdx < this._history.length - 1) this._history.splice(this._histIdx + 1); // forward 가지 절단
+      this._history.push(relPath);
+      this._histIdx = this._history.length - 1;
+    }
     // 새 노트 복원 대상: 헤딩 앵커가 없을 때만 (헤딩/검색 스크롤이 우선)
     this._pendingScroll = heading ? null : this._scrollPos.get(relPath) ?? 0;
     this._selected = relPath;
@@ -1467,6 +1482,20 @@ class MdvApp extends LitElement {
       this._noteHtml = '';
       this._marpSrc = null;
       this._backlinks = [];
+    }
+  }
+
+  _goBack() {
+    if (this._histIdx > 0) {
+      this._histIdx -= 1;
+      this._onSelect(this._history[this._histIdx], null, null, true);
+    }
+  }
+
+  _goForward() {
+    if (this._histIdx < this._history.length - 1) {
+      this._histIdx += 1;
+      this._onSelect(this._history[this._histIdx], null, null, true);
     }
   }
 
@@ -1973,6 +2002,10 @@ ${lines.map(
   _renderViewBar() {
     return html`
       <div class="view-bar">
+        <div class="tabs">
+          <button class="tab" title="뒤로 (Alt+←)" ?disabled=${this._histIdx <= 0} @click=${this._goBack}>←</button>
+          <button class="tab" title="앞으로 (Alt+→)" ?disabled=${this._histIdx >= this._history.length - 1} @click=${this._goForward}>→</button>
+        </div>
         <div class="tabs">
           <button class="tab ${!this._rawView ? 'active' : ''}" title="렌더 보기" @click=${() => (this._rawView = false)}>👁</button>
           <button class="tab ${this._rawView ? 'active' : ''}" title="원본 보기" @click=${() => (this._rawView = true)}>&lt;/&gt;</button>
