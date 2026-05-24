@@ -128,6 +128,65 @@ ipcMain.handle('note:read', async (_e, relPath) => {
 // --- IPC: PlantUML 렌더 (java -jar plantuml.jar -pipe) ---
 ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));
 
+// --- Marp export: 자립형 HTML 빌드 + printToPDF (오프라인, marp-cli 미사용) ---
+function buildMarpExportHtml(html, css) {
+  return (
+    '<!doctype html><html><head><meta charset="utf-8"><style>\n' +
+    css +
+    '\nhtml,body{margin:0;padding:0;background:#fff;}' +
+    '\n@page{margin:0;}' +
+    '\n.marpit>section{break-after:page;}' +
+    '\n.marpit>section:last-child{break-after:auto;}' +
+    '\n</style></head><body>' +
+    html +
+    '</body></html>'
+  );
+}
+
+async function renderMarpPdf(html, css) {
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { offscreen: true },
+  });
+  try {
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildMarpExportHtml(html, css)));
+    await new Promise((r) => setTimeout(r, 350)); // 폰트/레이아웃 안정화
+    // 마프 기본 슬라이드 1280x720px ≈ 13.333in x 7.5in
+    return await win.webContents.printToPDF({
+      printBackground: true,
+      pageSize: { width: 13.333, height: 7.5 },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    });
+  } finally {
+    win.destroy();
+  }
+}
+
+ipcMain.handle('marp:export', async (e, { format, html, css, title }) => {
+  const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+  const base = (title || 'slides').replace(/[\\/:*?"<>|]/g, '_');
+  if (format === 'html') {
+    const res = await dialog.showSaveDialog(win, {
+      defaultPath: `${base}.html`,
+      filters: [{ name: 'HTML', extensions: ['html'] }],
+    });
+    if (res.canceled || !res.filePath) return { canceled: true };
+    fs.writeFileSync(res.filePath, buildMarpExportHtml(html, css), 'utf8');
+    return { ok: true, path: res.filePath };
+  }
+  if (format === 'pdf') {
+    const res = await dialog.showSaveDialog(win, {
+      defaultPath: `${base}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (res.canceled || !res.filePath) return { canceled: true };
+    const pdf = await renderMarpPdf(html, css);
+    fs.writeFileSync(res.filePath, pdf);
+    return { ok: true, path: res.filePath };
+  }
+  return { ok: false, error: `미지원 포맷: ${format}` };
+});
+
 // --- IPC: 창/보기 액션 (제거한 네이티브 메뉴 대체) ---
 const ZOOM_STEP = 0.5;
 const ZOOM_MIN = -3;

@@ -61,6 +61,21 @@ class MdvDeck extends LitElement {
       text-align: center;
       font-variant-numeric: tabular-nums;
     }
+    .nav-sep {
+      width: 1px;
+      height: 20px;
+      background: #444;
+      margin: 0 0.3rem;
+    }
+    .navbar button.exp {
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      background: #2d2f33;
+      border: 1px solid #4a4d51;
+    }
+    .navbar button.exp:hover {
+      background: var(--accent, #569cd6);
+    }
     .error {
       color: #f44747;
       padding: 1.5rem;
@@ -142,6 +157,15 @@ class MdvDeck extends LitElement {
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp') this._show(this._index - 1);
   }
 
+  _title() {
+    const m = /^#\s+(.+)$/m.exec(this.src || '');
+    return m ? m[1].trim() : 'slides';
+  }
+
+  _export(format) {
+    window.mdv.exportMarp({ format, html: this._html, css: this._css, title: this._title() });
+  }
+
   render() {
     if (this._error) return html`<div class="error">Marp 렌더 실패: ${this._error}</div>`;
     return html`
@@ -151,6 +175,9 @@ class MdvDeck extends LitElement {
         <button @click=${() => this._show(this._index - 1)} ?disabled=${this._index <= 0}>◀</button>
         <span class="counter">${this._count ? this._index + 1 : 0} / ${this._count}</span>
         <button @click=${() => this._show(this._index + 1)} ?disabled=${this._index >= this._count - 1}>▶</button>
+        <span class="nav-sep"></span>
+        <button class="exp" data-export @click=${() => this._export('pdf')} title="PDF로 내보내기">PDF</button>
+        <button class="exp" data-export @click=${() => this._export('html')} title="HTML로 내보내기">HTML</button>
       </div>
     `;
   }

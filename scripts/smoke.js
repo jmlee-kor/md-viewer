@@ -195,6 +195,16 @@ app.whenReady().then(async () => {
       const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
       const titlebarOk = !!titlebar && tbBtns === 3 && typeof window.mdv.onMaximizeChange === 'function';
 
+      // Marp export: exportMarp API + 덱 navbar export 버튼(PDF/HTML)
+      const deckEl = document.createElement('mdv-deck');
+      deckEl.src = '---\\nmarp: true\\n---\\n# S1\\n\\n---\\n\\n# S2';
+      document.body.appendChild(deckEl);
+      await deckEl.updateComplete;
+      await new Promise((r) => setTimeout(r, 80));
+      await deckEl.updateComplete;
+      const exportBtns = deckEl.shadowRoot.querySelectorAll('[data-export]').length;
+      const marpExportOk = typeof window.mdv.exportMarp === 'function' && exportBtns === 2;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -232,6 +242,7 @@ app.whenReady().then(async () => {
         rawOk,
         recentOk,
         titlebarOk,
+        marpExportOk,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -274,6 +285,7 @@ app.whenReady().then(async () => {
     if (!result.rawOk) fail('md 원본(raw) 보기 렌더 실패');
     if (!result.recentOk) fail('최근 vault 리스트 실패');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
+    if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
   } catch (e) {
     fail(String(e));
   }
