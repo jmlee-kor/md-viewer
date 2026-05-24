@@ -3,5 +3,6 @@
 import './mermaid.js';
 import './drawio.js';
 import './d2.js';
+import './plantuml.js';
 
 export { hydrateDiagrams } from './registry.js';

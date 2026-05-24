@@ -4,8 +4,12 @@
 // (1) ESM 모듈 로딩(CSP 통과), (2) Lit <mdv-app> 렌더 + 'Vault 열기' 버튼,
 // (3) preload IPC API 노출, (4) markdown→sanitize 파이프라인 동작 을 검증한다.
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
+const plantuml = require('../src/main/plantuml');
+
+// 실제 main.js 와 동일하게 PlantUML IPC 핸들러 등록 (전체 경로 검증용)
+ipcMain.handle('plantuml:render', (_e, src) => plantuml.render(src));
 
 app.disableHardwareAcceleration();
 
@@ -82,6 +86,20 @@ app.whenReady().then(async () => {
       const d2Svg = !!d2div.querySelector('.mdv-diagram svg');
       const d2Err = d2div.querySelector('.mdv-diagram-msg')?.textContent || null;
 
+      // PlantUML: main process IPC(java -jar). 배선 필수, 실제 렌더는 java/jar 반입 시.
+      const plantumlWired = typeof window.mdv.renderPlantUML === 'function';
+      const pu = document.createElement('div');
+      pu.style.width = '600px';
+      pu.innerHTML = window.__mdvTest.renderMarkdown('~~~plantuml\\n@startuml\\nAlice -> Bob: hi\\n@enduml\\n~~~');
+      document.body.appendChild(pu);
+      await window.__mdvTest.hydrateDiagrams(pu);
+      for (let i = 0; i < 80; i++) {
+        if (pu.querySelector('.mdv-diagram svg') || pu.querySelector('.mdv-diagram-msg')) break;
+        await sleep(100);
+      }
+      const plantumlSvg = !!pu.querySelector('.mdv-diagram svg');
+      const plantumlErr = pu.querySelector('.mdv-diagram-msg')?.textContent?.split('\\n')[0] || null;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -100,6 +118,9 @@ app.whenReady().then(async () => {
         drawioErr,
         d2Svg,
         d2Err,
+        plantumlWired,
+        plantumlSvg,
+        plantumlErr,
       };
     })()`);
 
@@ -118,6 +139,10 @@ app.whenReady().then(async () => {
     if (!result.mermaidSvg) fail(`mermaid SVG 렌더 실패 (${result.mermaidErr || '원인 미상'})`);
     if (!result.drawioSvg) fail(`drawio SVG 렌더 실패 (${result.drawioErr || '원인 미상'})`);
     if (!result.d2Svg) fail(`d2 SVG 렌더 실패 (${result.d2Err || '원인 미상'})`);
+    // PlantUML: IPC 배선은 필수. 실제 렌더는 java/jar 반입 여부에 따름(svg 또는 클린 에러)
+    if (!result.plantumlWired) fail('renderPlantUML API 미노출');
+    if (!result.plantumlSvg && !result.plantumlErr) fail('PlantUML IPC 응답 이상 (svg/에러 모두 없음)');
+    console.log(result.plantumlSvg ? 'PlantUML: 실제 렌더 ✅' : `PlantUML: 배선 OK, 렌더 보류 (${result.plantumlErr})`);
   } catch (e) {
     fail(String(e));
   }

@@ -24,4 +24,16 @@ graph TD
 DB -> 서버: 결과
 ```
 
+## PlantUML
+
+> PlantUML 은 Java 기반이라 `tools/` 에 JRE + plantuml.jar 반입 후 동작합니다
+> (자세히는 tools/README.md). 미반입 시 안내 메시지가 표시됩니다.
+
+```plantuml
+@startuml
+Alice -> Bob: 인증 요청
+Bob --> Alice: 토큰 발급
+@enduml
+```
+
 [[Welcome]] 로 돌아가기

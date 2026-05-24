@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vault = require('./vault');
 const linkIndex = require('./link-index');
+const plantuml = require('./plantuml');
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -90,6 +91,9 @@ ipcMain.handle('note:read', async (_e, relPath) => {
   if (!currentVaultRoot) throw new Error('vault 미선택');
   return vault.readNote(currentVaultRoot, relPath);
 });
+
+// --- IPC: PlantUML 렌더 (java -jar plantuml.jar -pipe) ---
+ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));
 
 app.whenReady().then(() => {
   createWindow();

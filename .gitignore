@@ -15,3 +15,10 @@ Thumbs.db
 # 아래 negation 으로 vendor 하위가 위 규칙에 안 걸리게 보장.
 !vendor/
 !vendor/**
+
+# tools/ 의 반입 바이너리(JRE/plantuml.jar/graphviz)는 커밋하지 않음 (README 만 유지)
+tools/*
+!tools/README.md
+
+# 로컬 설정 (java/jar/dot 경로) — PC 별로 다름
+mdv.config.json
