@@ -79,6 +79,15 @@ class MdvApp extends LitElement {
       pointer-events: none;
       transition: opacity 0.18s ease, transform 0.18s ease;
     }
+    /* 토글-패널 사이 죽은 간격을 투명 브리지로 메워 hover 연속 유지 */
+    .menu-panel::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -16px;
+      height: 16px;
+    }
     .menu:hover .menu-panel,
     .menu.open .menu-panel {
       opacity: 1;
