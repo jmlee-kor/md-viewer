@@ -297,6 +297,24 @@ app.whenReady().then(async () => {
       appEl._noteHtml = '';
       await appEl.updateComplete;
 
+      // 사이드바 splitter: 핸들 존재 + 너비 갱신(.body grid 인라인) + 더블클릭 리셋
+      const splitterEl = appEl.shadowRoot.querySelector('.splitter');
+      appEl._sidebarWidth = 340;
+      await appEl.updateComplete;
+      const bodyCols = appEl.shadowRoot.querySelector('.body').getAttribute('style') || '';
+      const widthApplied = /340px/.test(bodyCols);
+      appEl._resetSidebarWidth();
+      await appEl.updateComplete;
+      const splitterOk = !!splitterEl && widthApplied && appEl._sidebarWidth === 280;
+
+      // Ctrl+휠 줌: ctrl+wheel(up) → _appAction('zoomIn') 호출(브라우저 기본 줌 대신)
+      let zoomCalled = null;
+      const origAppAction = appEl._appAction.bind(appEl);
+      appEl._appAction = (n) => { zoomCalled = n; };
+      window.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, cancelable: true }));
+      const wheelZoomOk = zoomCalled === 'zoomIn';
+      appEl._appAction = origAppAction;
+
       // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API
       const titlebar = appEl.shadowRoot.querySelector('.titlebar');
       const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
@@ -387,6 +405,8 @@ app.whenReady().then(async () => {
         rawOk,
         recentOk,
         searchOk,
+        splitterOk,
+        wheelZoomOk,
         titlebarOk,
         marpExportOk,
         reHydrateOk,
@@ -438,6 +458,8 @@ app.whenReady().then(async () => {
     if (!result.rawOk) fail('md 원본(raw) 보기 렌더 실패');
     if (!result.recentOk) fail('최근 vault 리스트 실패');
     if (!result.searchOk) fail('전문 검색 실패 (IPC/결과/하이라이트/결과패널)');
+    if (!result.splitterOk) fail('사이드바 splitter 너비 조절/리셋 실패');
+    if (!result.wheelZoomOk) fail('Ctrl+휠 줌 실패 (ctrl+wheel → zoomIn 미호출)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');

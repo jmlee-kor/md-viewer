@@ -31,6 +31,7 @@ class MdvApp extends LitElement {
     _searchResults: { state: true },
     _searchMatchIdx: { state: true },
     _searchMatchTotal: { state: true },
+    _sidebarWidth: { state: true },
   };
 
   static styles = [
@@ -269,9 +270,18 @@ class MdvApp extends LitElement {
       flex: 1 1 auto;
       min-height: 0;
       display: grid;
-      grid-template-columns: 280px 1fr;
+      grid-template-columns: 280px 6px 1fr; /* 사이드바 | splitter | 콘텐츠 (인라인 style로 폭 갱신) */
       grid-template-rows: 100%;
       overflow: hidden;
+    }
+    /* 사이드바↔콘텐츠 드래그 핸들 */
+    .splitter {
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.12s;
+    }
+    .splitter:hover {
+      background: var(--accent, #569cd6);
     }
     .sidebar {
       overflow: auto;
@@ -694,6 +704,7 @@ class MdvApp extends LitElement {
     this._searchMatchIdx = -1;
     this._searchMatchTotal = 0;
     this._matchEls = []; // 현재 노트의 mark.search-hit 엘리먼트들 (비반응 캐시)
+    this._sidebarWidth = getSetting('sidebarWidth', 280);
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -706,6 +717,13 @@ class MdvApp extends LitElement {
     // 다이얼로그/창 전환 등으로 포커스 잃으면 플로팅 메뉴 닫기
     this._onBlur = () => (this._menuOpen = false);
     window.addEventListener('blur', this._onBlur);
+    // Ctrl+휠 → 확대/축소 (브라우저 기본 visual zoom 막고 layout zoom 경로 재사용)
+    this._onWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      this._appAction(e.deltaY < 0 ? 'zoomIn' : 'zoomOut');
+    };
+    window.addEventListener('wheel', this._onWheel, { passive: false });
   }
 
   disconnectedCallback() {
@@ -713,6 +731,7 @@ class MdvApp extends LitElement {
     this._unsub?.();
     this._unsubMax?.();
     window.removeEventListener('blur', this._onBlur);
+    window.removeEventListener('wheel', this._onWheel);
   }
 
   firstUpdated() {
@@ -788,6 +807,31 @@ class MdvApp extends LitElement {
 
   _vaultName(p) {
     return p.split(/[\\/]/).filter(Boolean).pop() || p;
+  }
+
+  /** 사이드바↔콘텐츠 경계 드래그로 사이드바 너비 조절 (clamp + settings 영속) */
+  _startResize(e) {
+    e.preventDefault();
+    const bodyEl = this.renderRoot.querySelector('.body');
+    const onMove = (ev) => {
+      const left = bodyEl.getBoundingClientRect().left;
+      this._sidebarWidth = Math.min(600, Math.max(160, Math.round(ev.clientX - left)));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      setSetting('sidebarWidth', this._sidebarWidth);
+    };
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  /** 더블클릭 시 기본 너비로 리셋 */
+  _resetSidebarWidth() {
+    this._sidebarWidth = 280;
+    setSetting('sidebarWidth', 280);
   }
 
   /** 전문 검색 입력(디바운스) → main 에 검색 위임 → 결과 패널 갱신 */
@@ -1080,7 +1124,7 @@ ${lines.map(
   render() {
     return html`
       ${this._renderTitlebar()}
-      <div class="body">
+      <div class="body" style="grid-template-columns: ${this._sidebarWidth}px 6px 1fr">
         <aside class="sidebar">
           ${this._tree.length
             ? html`<div class="search">
@@ -1103,6 +1147,12 @@ ${lines.map(
               ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
               : html`<div class="empty">vault 없음</div>`}
         </aside>
+        <div
+          class="splitter"
+          title="드래그로 너비 조절 (더블클릭=기본)"
+          @pointerdown=${this._startResize}
+          @dblclick=${this._resetSidebarWidth}
+        ></div>
         <div class="content">
           ${this._selected ? this._renderViewBar() : ''}
           <div class="view-scroll">
