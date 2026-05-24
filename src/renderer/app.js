@@ -485,9 +485,10 @@ class MdvApp extends LitElement {
     .raw {
       margin: 0;
       padding: 1rem 1.5rem;
-      font-family: "Consolas", "D2Coding", monospace;
+      font-family: var(--mono, "Consolas", monospace); /* CJK 정렬 monospace (styles.css @font-face) */
       font-size: 0.85rem;
       line-height: 1.6;
+      tab-size: 4;
     }
     .raw-line {
       display: flex;
@@ -565,12 +566,14 @@ class MdvApp extends LitElement {
       padding: 0.15em 0.4em;
       border-radius: 4px;
       font-size: 0.9em;
+      font-family: var(--mono, monospace); /* CJK 정렬 monospace */
     }
     .note pre {
       background: #2d2d2d;
       padding: 0.9rem;
       border-radius: 6px;
       overflow: auto;
+      tab-size: 4;
     }
     .note pre code {
       background: none;

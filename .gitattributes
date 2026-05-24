@@ -12,3 +12,6 @@
 *.jpg binary
 *.wasm binary
 *.jar binary
+*.ttf binary
+*.woff binary
+*.woff2 binary

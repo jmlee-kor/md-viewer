@@ -20,6 +20,18 @@ const ASSETS = [
     url: 'https://viewer.diagrams.net/js/viewer.min.js',
     note: 'draw.io GraphViewer (mxGraph). rolling build — 고정이 필요하면 태그된 릴리스 URL 로 교체.',
   },
+  {
+    // CJK monospace 폰트: 코드/원본 보기에서 한글이 ASCII×2 폭으로 정렬되도록.
+    // NanumGothicCoding (OFL) — Latin+Hangul 단일 파일이라 metrics 일관. google/fonts main.
+    out: 'fonts/NanumGothicCoding-Regular.ttf',
+    url: 'https://github.com/google/fonts/raw/main/ofl/nanumgothiccoding/NanumGothicCoding-Regular.ttf',
+    note: 'NanumGothicCoding Regular (OFL). 코드블록/원본보기 CJK 정렬용.',
+  },
+  {
+    out: 'fonts/OFL.txt',
+    url: 'https://github.com/google/fonts/raw/main/ofl/nanumgothiccoding/OFL.txt',
+    note: 'NanumGothicCoding 라이선스 (SIL Open Font License 1.1).',
+  },
 ];
 
 function download(url, dest, redirects = 0) {
@@ -52,6 +64,7 @@ function download(url, dest, redirects = 0) {
 fs.mkdirSync(vendorDir, { recursive: true });
 for (const a of ASSETS) {
   const dest = path.join(vendorDir, a.out);
+  fs.mkdirSync(path.dirname(dest), { recursive: true }); // 하위 디렉토리(fonts/) 대비
   process.stdout.write(`fetching ${a.out} … `);
   const size = await download(a.url, dest);
   console.log(`${(size / 1024 / 1024).toFixed(1)} MB`);

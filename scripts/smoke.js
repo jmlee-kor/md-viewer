@@ -315,6 +315,25 @@ app.whenReady().then(async () => {
       const wheelZoomOk = zoomCalled === 'zoomIn';
       appEl._appAction = origAppAction;
 
+      // CJK monospace 폰트: @font-face(vendor TTF) 로드 가능 + .raw/.note code 에 적용
+      let fontFaceOk = false;
+      try {
+        await document.fonts.load('14px NanumGothicCoding'); // 실패 시 throw (파일 경로/유효성)
+        fontFaceOk = document.fonts.check('14px NanumGothicCoding');
+      } catch {}
+      appEl._marpSrc = null;
+      appEl._error = null;
+      appEl._selected = 'Welcome.md';
+      appEl._src = '# 한글 abc 정렬';
+      appEl._rawView = true;
+      await appEl.updateComplete;
+      const rawFont = getComputedStyle(appEl.shadowRoot.querySelector('.raw')).fontFamily || '';
+      const cjkFontOk = fontFaceOk && /NanumGothicCoding/i.test(rawFont);
+      appEl._rawView = false;
+      appEl._selected = null;
+      appEl._src = '';
+      await appEl.updateComplete;
+
       // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API
       const titlebar = appEl.shadowRoot.querySelector('.titlebar');
       const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
@@ -407,6 +426,7 @@ app.whenReady().then(async () => {
         searchOk,
         splitterOk,
         wheelZoomOk,
+        cjkFontOk,
         titlebarOk,
         marpExportOk,
         reHydrateOk,
@@ -460,6 +480,7 @@ app.whenReady().then(async () => {
     if (!result.searchOk) fail('전문 검색 실패 (IPC/결과/하이라이트/결과패널)');
     if (!result.splitterOk) fail('사이드바 splitter 너비 조절/리셋 실패');
     if (!result.wheelZoomOk) fail('Ctrl+휠 줌 실패 (ctrl+wheel → zoomIn 미호출)');
+    if (!result.cjkFontOk) fail('CJK monospace 폰트 실패 (@font-face 로드/적용)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');

@@ -1,8 +1,21 @@
+/* CJK monospace: 코드/원본 보기에서 한글이 ASCII×2 폭으로 정렬되도록.
+   NanumGothicCoding(OFL) 단일 TTF — Latin+Hangul 동일 metrics. 오프라인 vendor 번들.
+   @font-face 는 document 레벨에 두어야 Shadow DOM(app.js) 에서도 쓰인다. */
+@font-face {
+  font-family: 'NanumGothicCoding';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../vendor/fonts/NanumGothicCoding-Regular.ttf') format('truetype');
+}
+
 :root {
   --bg: #1e1e1e;
   --fg: #d4d4d4;
   --accent: #569cd6;
   --muted: #9aa0a6;
+  /* 코드/원본 monospace 스택 (Shadow DOM 으로 상속). 한글 정렬 위해 NanumGothicCoding 우선. */
+  --mono: 'NanumGothicCoding', 'Consolas', 'Courier New', monospace;
 }
 
 * {
