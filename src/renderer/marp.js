@@ -21,12 +21,13 @@ export function hasMarpFrontmatter(src) {
  *  주의: USE_PROFILES 로 SVG 만 제한하면 foreignObject 안의 HTML(section)이 사라진다.
  *  기본 DOMPurify(html+svg+mathml 통합)로 두어야 svg>foreignObject>section 구조가 보존된다. */
 export function renderMarp(src) {
-  const { html, css } = getMarp().render(src || '');
+  const { html, css, comments } = getMarp().render(src || '');
   const safeHtml = DOMPurify.sanitize(html, {
     ADD_TAGS: ['foreignobject', 'use'],
     ADD_ATTR: ['data-marpit-svg', 'viewBox', 'preserveAspectRatio'],
   });
-  return { html: safeHtml, css };
+  // comments: 슬라이드별 <!-- ... --> = 발표자 노트(presenter 모드용). 평문이라 그대로.
+  return { html: safeHtml, css, comments: comments || [] };
 }
 
 // SVG export 용 별도 인스턴스: inlineSVG:true → 슬라이드가 <svg> 로 출력.

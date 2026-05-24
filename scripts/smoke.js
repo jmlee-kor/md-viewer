@@ -430,6 +430,26 @@ app.whenReady().then(async () => {
       await deckEl.updateComplete;
       const marpFsOk = fsBtn && keyGuardOk && fsControlsOk;
 
+      // Marp presenter 모드: 노트 추출 + 현재/다음 패널 + 타이머 + 종료
+      deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n<!-- 첫 슬라이드 노트 -->\\n\\n---\\n\\n# B';
+      await deckEl.updateComplete;
+      await new Promise((r) => setTimeout(r, 80));
+      await deckEl.updateComplete;
+      deckEl._enterPresenter();
+      await deckEl.updateComplete;
+      await new Promise((r) => setTimeout(r, 60));
+      await deckEl.updateComplete;
+      const prEl = !!deckEl.shadowRoot.querySelector('.presenter');
+      const prCur = !!deckEl.shadowRoot.querySelector('.pr-current section');
+      const prNext = !!deckEl.shadowRoot.querySelector('.pr-next section');
+      const prNotesOk = /첫 슬라이드 노트/.test(deckEl.shadowRoot.querySelector('.pr-notes')?.textContent || '');
+      const prTimerFmt = /^\\d\\d:\\d\\d$/.test((deckEl.shadowRoot.querySelector('.pr-timer')?.textContent || '').trim());
+      const prRunning = deckEl._running === true;
+      deckEl._exitPresenter();
+      await deckEl.updateComplete;
+      const prExited = !deckEl.shadowRoot.querySelector('.presenter');
+      const presenterOk = prEl && prCur && prNext && prNotesOk && prTimerFmt && prRunning && prExited;
+
       // 다이어그램 zoom/pan 라이트박스: 클릭 오픈 + 휠 줌 + export API + 닫기
       const dWrap = document.createElement('div');
       dWrap.className = 'mdv-diagram';
@@ -534,6 +554,7 @@ app.whenReady().then(async () => {
         titlebarOk,
         marpExportOk,
         marpFsOk,
+        presenterOk,
         lightboxOk,
         reHydrateOk,
         viewBarOk,
@@ -593,6 +614,7 @@ app.whenReady().then(async () => {
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.marpFsOk) fail('Marp 전체화면 재생 실패 (재생버튼/키가드/fs컨트롤)');
+    if (!result.presenterOk) fail('Marp presenter 모드 실패 (패널/노트/타이머/종료)');
     if (!result.lightboxOk) fail('다이어그램 라이트박스 실패 (오픈/줌/export API/닫기)');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
