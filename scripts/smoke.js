@@ -256,9 +256,21 @@ app.whenReady().then(async () => {
       await appEl.updateComplete;
       const srItems = appEl.shadowRoot.querySelectorAll('.sr-item').length;
       const srMark = !!appEl.shadowRoot.querySelector('.sr-snip mark');
-      const searchOk = searchApi && searchHasResult && searchEmpty && srItems >= 1 && srMark;
+      // 본문 하이라이트: 검색 결과 클릭으로 노트 열면 본문에 <mark.search-hit> + 첫매치 스크롤
+      appEl._searchQuery = '다이어그램';
+      appEl._openSearchResult('Diagrams.md'); // → _onSelect(terms) → readNote(IPC) → 렌더
+      for (let i = 0; i < 30; i++) {
+        if (appEl.shadowRoot.querySelector('.note mark.search-hit')) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      const noteMark = appEl.shadowRoot.querySelector('.note mark.search-hit');
+      const noteHiOk = !!noteMark && /다이어그램/.test(noteMark.textContent);
+      const searchOk = searchApi && searchHasResult && searchEmpty && srItems >= 1 && srMark && noteHiOk;
       appEl._searchQuery = ''; // 이후 테스트 위해 복원
       appEl._searchResults = [];
+      appEl._searchTerms = [];
+      appEl._selected = null;
+      appEl._noteHtml = '';
       await appEl.updateComplete;
 
       // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API

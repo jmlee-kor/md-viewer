@@ -328,6 +328,14 @@ class MdvApp extends LitElement {
       padding: 1.5rem 2.5rem;
       max-width: 60rem;
     }
+    /* 본문 내 검색 매치 하이라이트 (브라우저 기본 노랑 대신 accent 톤) */
+    .note mark,
+    .note mark.search-hit {
+      background: rgba(86, 156, 214, 0.35);
+      color: inherit;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
     .empty {
       color: var(--muted, #9aa0a6);
       padding: 2rem;
@@ -640,6 +648,7 @@ class MdvApp extends LitElement {
     this._recent = getSetting('recentVaults', []);
     this._searchQuery = '';
     this._searchResults = [];
+    this._searchTerms = [];
     this._searchTimer = null;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
@@ -761,9 +770,16 @@ class MdvApp extends LitElement {
     this._searchResults = [];
   }
 
-  async _onSelect(relPath) {
+  /** 검색 결과에서 노트 열기 — 현재 검색어를 본문 하이라이트용으로 전달 */
+  _openSearchResult(relPath) {
+    const terms = this._searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    this._onSelect(relPath, terms);
+  }
+
+  async _onSelect(relPath, searchTerms = null) {
     this._selected = relPath;
     this._error = null;
+    this._searchTerms = searchTerms || []; // 트리/위키링크/백링크 경로는 하이라이트 없음
     this._rawView = false; // 새 노트는 렌더 뷰 기본
     try {
       const src = await window.mdv.readNote(relPath);
@@ -797,8 +813,79 @@ class MdvApp extends LitElement {
       if (note) {
         hydrateDiagrams(note); // placeholder dataset.hydrated 로 멱등
         this._setupHeadingFold(note); // heading dataset.mdvFold 로 멱등
+        this._highlightSearch(note); // 검색어 본문 하이라이트(있으면) + 첫 매치 스크롤
       }
     }
+  }
+
+  /** 검색어를 노트 본문에서 <mark>로 하이라이트하고 첫 매치로 스크롤.
+   *  Lit 이 article 재사용 + unsafeHTML 로 자식을 교체하면 마크가 사라지므로,
+   *  멱등 키 가드 없이 매 렌더 기존 마크를 걷어내고 다시 칠한다. */
+  _highlightSearch(noteEl) {
+    const terms = (this._searchTerms || []).filter(Boolean);
+    // 이전 하이라이트 제거 (article 재사용 대비)
+    const old = noteEl.querySelectorAll('mark.search-hit');
+    if (old.length) {
+      old.forEach((m) => m.replaceWith(document.createTextNode(m.textContent)));
+      noteEl.normalize();
+    }
+    if (!terms.length) return;
+
+    const walker = document.createTreeWalker(noteEl, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement?.closest('.mdv-diagram')) return NodeFilter.FILTER_REJECT; // SVG 보호
+        const low = node.nodeValue.toLowerCase();
+        return terms.some((t) => low.includes(t)) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    const targets = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) targets.push(n);
+
+    let first = null;
+    for (const textNode of targets) {
+      const built = this._buildHighlight(textNode.nodeValue, terms);
+      if (built) {
+        if (!first) first = built.firstMark;
+        textNode.replaceWith(built.frag);
+      }
+    }
+    if (first) first.scrollIntoView({ block: 'center' });
+  }
+
+  /** 텍스트를 term 매치 기준으로 분해해 <mark.search-hit> 가 섞인 DocumentFragment 생성. */
+  _buildHighlight(text, terms) {
+    const low = text.toLowerCase();
+    const ranges = [];
+    for (const t of terms) {
+      let i = 0;
+      while ((i = low.indexOf(t, i)) !== -1) {
+        ranges.push([i, i + t.length]);
+        i += t.length;
+      }
+    }
+    if (!ranges.length) return null;
+    ranges.sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const r of ranges) {
+      const last = merged[merged.length - 1];
+      if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+      else merged.push([r[0], r[1]]);
+    }
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    let firstMark = null;
+    for (const [s, e] of merged) {
+      if (s > pos) frag.appendChild(document.createTextNode(text.slice(pos, s)));
+      const mk = document.createElement('mark');
+      mk.className = 'search-hit';
+      mk.textContent = text.slice(s, e);
+      if (!firstMark) firstMark = mk;
+      frag.appendChild(mk);
+      pos = e;
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    return { frag, firstMark };
   }
 
   /** 노트 최상위 헤딩을 클릭 가능하게 만들어 섹션 접기/펼치기 */
@@ -1066,7 +1153,7 @@ ${lines.map(
           (r) => html`<div
             class="sr-item ${this._selected === r.relPath ? 'active' : ''}"
             title=${r.relPath}
-            @click=${() => this._onSelect(r.relPath)}
+            @click=${() => this._openSearchResult(r.relPath)}
           >
             <div class="sr-title">${r.title}</div>
             ${r.relPath.includes('/') ? html`<div class="sr-path">${r.relPath}</div>` : ''}
