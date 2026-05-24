@@ -26,6 +26,7 @@ const targets = [
   },
   { out: 'markdown-it.js', contents: `export { default } from 'markdown-it';` },
   { out: 'dompurify.js', contents: `export { default } from 'dompurify';` },
+  { out: 'mermaid.js', contents: `export { default } from 'mermaid';` },
 ];
 
 for (const t of targets) {

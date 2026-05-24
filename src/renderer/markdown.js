@@ -90,12 +90,35 @@ function wikilinkPlugin(md) {
   });
 }
 
+// --- 다이어그램 fence 디스패처 ---
+// 알려진 다이어그램 언어의 코드펜스를 placeholder <div> 로 바꾼다.
+// 실제 렌더(그림 치환)는 렌더 후 hydrateDiagrams() 가 비동기로 수행한다.
+// 원문은 placeholder 내부 텍스트로 보존 → 렌더 실패 시 코드블록으로 폴백.
+export const DIAGRAM_LANGS = new Set(['mermaid', 'd2', 'drawio', 'plantuml']);
+
+function diagramFencePlugin(md) {
+  const fallback = md.renderer.rules.fence?.bind(md.renderer.rules) ||
+    ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
+    if (DIAGRAM_LANGS.has(lang)) {
+      // 원문은 텍스트로 (DOMPurify 가 텍스트는 유지). data-lang 으로 엔진 구분.
+      const escaped = md.utils.escapeHtml(token.content);
+      return `<div class="mdv-diagram" data-lang="${lang}"><code class="mdv-diagram-src">${escaped}</code></div>\n`;
+    }
+    return fallback(tokens, idx, options, env, self);
+  };
+}
+
 const md = new MarkdownIt({
   html: true,
   linkify: true,
   typographer: true,
   breaks: false,
-}).use(wikilinkPlugin);
+})
+  .use(wikilinkPlugin)
+  .use(diagramFencePlugin);
 
 const PURIFY_OPTS = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },

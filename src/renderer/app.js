@@ -4,6 +4,7 @@
 import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
 import { renderMarkdown, makeResolver } from './markdown.js';
+import { hydrateDiagrams } from './diagrams/index.js';
 
 class MdvApp extends LitElement {
   static properties = {
@@ -147,6 +148,23 @@ class MdvApp extends LitElement {
     .note img {
       max-width: 100%;
     }
+    /* 다이어그램 */
+    .note .mdv-diagram {
+      margin: 1rem 0;
+      text-align: center;
+    }
+    .note .mdv-diagram svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .note .mdv-diagram-error {
+      text-align: left;
+    }
+    .note .mdv-diagram-msg {
+      color: #f0a000;
+      font-size: 0.85rem;
+      margin-bottom: 0.4rem;
+    }
     /* 위키링크 */
     .note a.wikilink {
       text-decoration: none;
@@ -222,6 +240,14 @@ class MdvApp extends LitElement {
     }
   }
 
+  updated(changed) {
+    // 노트 HTML 이 새로 그려진 뒤 다이어그램 placeholder 를 비동기 렌더로 치환.
+    if (changed.has('_noteHtml') && this._noteHtml) {
+      const note = this.renderRoot.querySelector('.note');
+      if (note) hydrateDiagrams(note);
+    }
+  }
+
   _onNoteClick(e) {
     const a = e.target.closest?.('a.wikilink');
     if (!a) return;
@@ -284,4 +310,4 @@ class MdvApp extends LitElement {
 customElements.define('mdv-app', MdvApp);
 
 // 헤드리스 스모크/디버그용 훅
-window.__mdvTest = { renderMarkdown, makeResolver };
+window.__mdvTest = { renderMarkdown, makeResolver, hydrateDiagrams };

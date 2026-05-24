@@ -44,6 +44,16 @@ app.whenReady().then(async () => {
       const sample = window.__mdvTest.renderMarkdown('# 제목\\n\\n**굵게** 그리고 \`코드\`.\\n\\n<script>alert(1)<\\/script>');
       const resolver = window.__mdvTest.makeResolver({ diagrams: 'Diagrams.md' });
       const wl = window.__mdvTest.renderMarkdown('[[Diagrams]] · [[없음]] · [[Diagrams|별칭]]', { resolveWikiLink: resolver });
+
+      // 다이어그램: ~~~ fence(백틱 회피)로 mermaid placeholder → hydrate → svg 확인
+      const dd = document.createElement('div');
+      dd.innerHTML = window.__mdvTest.renderMarkdown('~~~mermaid\\ngraph TD\\n  A[시작]-->B[끝]\\n~~~');
+      document.body.appendChild(dd);
+      const diagPlaceholder = !!dd.querySelector('.mdv-diagram[data-lang="mermaid"]');
+      await window.__mdvTest.hydrateDiagrams(dd);
+      const mermaidSvg = !!dd.querySelector('.mdv-diagram svg');
+      const mermaidErr = dd.querySelector('.mdv-diagram-msg')?.textContent || null;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -55,6 +65,9 @@ app.whenReady().then(async () => {
         wlResolved: wl.includes('data-target="Diagrams.md"'),
         wlBroken: /wikilink broken/.test(wl),
         wlAlias: wl.includes('별칭'),
+        diagPlaceholder,
+        mermaidSvg,
+        mermaidErr,
       };
     })()`);
 
@@ -69,6 +82,8 @@ app.whenReady().then(async () => {
     if (!result.wlResolved) fail('위키링크 해결 실패 — data-target 없음');
     if (!result.wlBroken) fail('미해결 위키링크 broken 표시 실패');
     if (!result.wlAlias) fail('위키링크 별칭 렌더 실패');
+    if (!result.diagPlaceholder) fail('다이어그램 fence placeholder 생성 실패');
+    if (!result.mermaidSvg) fail(`mermaid SVG 렌더 실패 (${result.mermaidErr || '원인 미상'})`);
   } catch (e) {
     fail(String(e));
   }

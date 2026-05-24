@@ -17,6 +17,7 @@
     "electron": "^33.2.0",
     "esbuild": "^0.28.0",
     "lit": "^3.3.3",
-    "markdown-it": "^14.2.0"
+    "markdown-it": "^14.2.0",
+    "mermaid": "^11.15.0"
   }
 }
