@@ -411,6 +411,25 @@ app.whenReady().then(async () => {
       const exportBtns = deckEl.shadowRoot.querySelectorAll('[data-export]').length;
       const marpExportOk = typeof window.mdv.exportMarp === 'function' && exportBtns === 4; // PDF/PNG/SVG/HTML
 
+      // Marp 전체화면 재생: 재생 버튼 + 키 가드 + 전체화면 컨트롤 렌더 (실제 진입은 헤드리스 불가)
+      const fsBtn = !!deckEl.shadowRoot.querySelector('[data-fs]');
+      // 입력 포커스 중 키 무시(composedPath 가드): _onKey 가 INPUT 타겟이면 슬라이드 이동 안 함
+      const idxBefore = deckEl._index;
+      const fakeInput = document.createElement('input');
+      deckEl._onKey({ key: 'ArrowRight', composedPath: () => [fakeInput], preventDefault() {} });
+      const keyGuardOk = deckEl._index === idxBefore;
+      // _fullscreen 상태면 fs-controls 렌더 + mousemove 로 visible
+      deckEl._fullscreen = true;
+      await deckEl.updateComplete;
+      const fsCtrlEl = deckEl.shadowRoot.querySelector('.fs-controls');
+      deckEl._onMouseMove();
+      await deckEl.updateComplete;
+      const fsControlsOk = !!fsCtrlEl && deckEl.shadowRoot.querySelector('.fs-controls.visible') !== null;
+      deckEl._fullscreen = false;
+      deckEl._controlsVisible = false;
+      await deckEl.updateComplete;
+      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk;
+
       // 다이어그램 메모이즈: 같은 소스 두 번째 hydrate 는 캐시 히트로 svg 즉시
       const mk1 = document.createElement('div');
       mk1.innerHTML = window.__mdvTest.renderMarkdown('~~~mermaid\\ngraph TD\\n  X-->Y\\n~~~');
@@ -494,6 +513,7 @@ app.whenReady().then(async () => {
         embedOk,
         titlebarOk,
         marpExportOk,
+        marpFsOk,
         reHydrateOk,
         viewBarOk,
         memoizeOk,
@@ -551,6 +571,7 @@ app.whenReady().then(async () => {
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
+    if (!result.marpFsOk) fail('Marp 전체화면 재생 실패 (재생버튼/키가드/fs컨트롤)');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
     if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');
