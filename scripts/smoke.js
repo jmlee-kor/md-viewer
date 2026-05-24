@@ -100,6 +100,19 @@ app.whenReady().then(async () => {
       const plantumlSvg = !!pu.querySelector('.mdv-diagram svg');
       const plantumlErr = pu.querySelector('.mdv-diagram-msg')?.textContent?.split('\\n')[0] || null;
 
+      // Marp: frontmatter 감지 + 슬라이드 렌더(2장) + 살균(script 제거)
+      const marpDoc = '---\\nmarp: true\\n---\\n\\n# 슬라이드 1\\n\\n---\\n\\n# 슬라이드 2';
+      const marpDetected = window.__mdvTest.hasMarpFrontmatter(marpDoc);
+      const notMarp = window.__mdvTest.hasMarpFrontmatter('# 그냥 노트');
+      const marpOut = window.__mdvTest.renderMarp(marpDoc);
+      const marpSectionCount = (marpOut.html.match(/<section/g) || []).length;
+      const marpHasCss = marpOut.css.length > 100;
+      const evilMarp = window.__mdvTest.renderMarp('---\\nmarp: true\\n---\\n\\n[x](javascript:alert(1))\\n\\n<script>alert(2)<\\/script>');
+      // 실행 가능한 위협만 검사: <script> 태그 + javascript: href (단순 텍스트 아님)
+      const marpNoScript = !/<script/.test(evilMarp.html);
+      const marpNoJsHref = !/href\\s*=\\s*["']?\\s*javascript:/i.test(evilMarp.html);
+      const marpSanitized = marpNoScript && marpNoJsHref;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -121,6 +134,11 @@ app.whenReady().then(async () => {
         plantumlWired,
         plantumlSvg,
         plantumlErr,
+        marpDetected,
+        notMarp,
+        marpSectionCount,
+        marpHasCss,
+        marpSanitized,
       };
     })()`);
 
@@ -143,6 +161,11 @@ app.whenReady().then(async () => {
     if (!result.plantumlWired) fail('renderPlantUML API 미노출');
     if (!result.plantumlSvg && !result.plantumlErr) fail('PlantUML IPC 응답 이상 (svg/에러 모두 없음)');
     console.log(result.plantumlSvg ? 'PlantUML: 실제 렌더 ✅' : `PlantUML: 배선 OK, 렌더 보류 (${result.plantumlErr})`);
+    if (!result.marpDetected) fail('Marp frontmatter 감지 실패');
+    if (result.notMarp) fail('Marp 오탐지 (일반 노트를 marp로 판정)');
+    if (result.marpSectionCount !== 2) fail(`Marp 슬라이드 수 이상: ${result.marpSectionCount} (기대 2)`);
+    if (!result.marpHasCss) fail('Marp CSS 미생성');
+    if (!result.marpSanitized) fail('Marp 살균 실패 — <script> 통과');
   } catch (e) {
     fail(String(e));
   }

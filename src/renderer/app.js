@@ -5,6 +5,8 @@ import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
 import { renderMarkdown, makeResolver } from './markdown.js';
 import { hydrateDiagrams } from './diagrams/index.js';
+import { hasMarpFrontmatter, renderMarp } from './marp.js';
+import './deck.js';
 
 class MdvApp extends LitElement {
   static properties = {
@@ -15,6 +17,7 @@ class MdvApp extends LitElement {
     _noteHtml: { state: true },
     _backlinks: { state: true },
     _error: { state: true },
+    _marpSrc: { state: true },
   };
 
   static styles = css`
@@ -231,11 +234,20 @@ class MdvApp extends LitElement {
     this._error = null;
     try {
       const src = await window.mdv.readNote(relPath);
-      this._noteHtml = renderMarkdown(src, { resolveWikiLink: this._resolver });
-      this._backlinks = (this._index?.backlinks?.[relPath]) || [];
+      if (hasMarpFrontmatter(src)) {
+        // 슬라이드 모드: 일반 노트 뷰 대신 덱으로
+        this._marpSrc = src;
+        this._noteHtml = '';
+        this._backlinks = [];
+      } else {
+        this._marpSrc = null;
+        this._noteHtml = renderMarkdown(src, { resolveWikiLink: this._resolver });
+        this._backlinks = (this._index?.backlinks?.[relPath]) || [];
+      }
     } catch (err) {
       this._error = String(err);
       this._noteHtml = '';
+      this._marpSrc = null;
       this._backlinks = [];
     }
   }
@@ -275,14 +287,16 @@ class MdvApp extends LitElement {
         <div class="content">
           ${this._error
             ? html`<div class="error">${this._error}</div>`
-            : this._selected
-              ? html`
-                  <article class="note" @click=${this._onNoteClick}>
-                    ${unsafeHTML(this._noteHtml)}
-                  </article>
-                  ${this._renderBacklinks()}
-                `
-              : html`<div class="empty">노트를 선택하세요</div>`}
+            : this._marpSrc
+              ? html`<mdv-deck .src=${this._marpSrc}></mdv-deck>`
+              : this._selected
+                ? html`
+                    <article class="note" @click=${this._onNoteClick}>
+                      ${unsafeHTML(this._noteHtml)}
+                    </article>
+                    ${this._renderBacklinks()}
+                  `
+                : html`<div class="empty">노트를 선택하세요</div>`}
         </div>
       </div>
     `;
@@ -310,4 +324,4 @@ class MdvApp extends LitElement {
 customElements.define('mdv-app', MdvApp);
 
 // 헤드리스 스모크/디버그용 훅
-window.__mdvTest = { renderMarkdown, makeResolver, hydrateDiagrams };
+window.__mdvTest = { renderMarkdown, makeResolver, hydrateDiagrams, hasMarpFrontmatter, renderMarp };

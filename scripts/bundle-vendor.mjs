@@ -29,6 +29,7 @@ const targets = [
   { out: 'mermaid.js', contents: `export { default } from 'mermaid';` },
   // D2: browser 빌드는 wasm+worker 모두 인라인(자체 포함, fetch 없음).
   { out: 'd2.js', contents: `export { D2 } from '@terrastruct/d2';` },
+  { out: 'marp.js', contents: `export { Marp } from '@marp-team/marp-core';` },
 ];
 
 for (const t of targets) {
