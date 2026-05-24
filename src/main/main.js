@@ -71,11 +71,14 @@ async function loadVault(root) {
   const tree = await vault.scanVault(root);
   const files = linkIndex.flatten(tree);
   const index = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
+  // 위키 임베드(![[...]]) 해석용: 전체 파일(이미지 포함) 맵
+  const embedResolve = linkIndex.buildEmbedResolve(await vault.listFiles(root));
   // 본문(contents)은 검색용으로 main 에 보관하고 렌더러 payload 에서는 제외
   // (대용량 vault 에서 매 watch 변경마다 본문 전체를 IPC 로 보내는 비용 회피).
   currentContents = index.contents;
   currentTitles = index.titles;
-  const { contents, ...indexForRenderer } = index;
+  const { contents, ...rest } = index;
+  const indexForRenderer = { ...rest, embedResolve };
   currentIndex = indexForRenderer;
   return { root, tree, index: indexForRenderer };
 }

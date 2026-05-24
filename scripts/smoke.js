@@ -25,8 +25,9 @@ ipcMain.handle('vault:openPath', async (_e, root) => {
   const index = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
   smokeContents = index.contents;
   smokeTitles = index.titles;
-  const { contents, ...idx } = index;
-  return { root, tree, index: idx };
+  const embedResolve = linkIndex.buildEmbedResolve(await vault.listFiles(root));
+  const { contents, ...rest } = index;
+  return { root, tree, index: { ...rest, embedResolve } };
 });
 ipcMain.handle('note:read', (_e, rel) => vault.readNote(SAMPLE_VAULT, rel));
 ipcMain.handle('vault:search', (_e, q) => linkIndex.searchContent(smokeContents, smokeTitles, q));
@@ -371,6 +372,30 @@ app.whenReady().then(async () => {
       appEl._paletteOpen = false;
       await appEl.updateComplete;
 
+      // 위키 임베드: 이미지(![[logo.svg]]) + 노트 transclusion(![[Welcome]])
+      const vd = await window.mdv.openVaultPath(${JSON.stringify(SAMPLE_VAULT)});
+      appEl._index = vd.index;
+      appEl._resolver = window.__mdvTest.makeResolver(vd.index.resolve);
+      appEl._marpSrc = null;
+      appEl._rawView = false;
+      appEl._error = null;
+      appEl._selected = 'Diagrams.md';
+      appEl._curDir = '';
+      appEl._searchTerms = [];
+      appEl._src = '![[assets/logo.svg]]\\n\\n![[Welcome]]';
+      appEl._renderNoteHtml();
+      await appEl.updateComplete;
+      for (let i = 0; i < 30; i++) {
+        if (appEl.shadowRoot.querySelector('.mdv-embed-img') &&
+            appEl.shadowRoot.querySelector('.mdv-transclusion')) break;
+        await sleep(50);
+      }
+      const embedImg = appEl.shadowRoot.querySelector('.mdv-embed-img');
+      const imgEmbedOk = !!embedImg && /mdv-res:.*logo\\.svg/i.test(embedImg.src);
+      const transEl = appEl.shadowRoot.querySelector('.mdv-transclusion');
+      const transOk = !!transEl && transEl.textContent.trim().length > 0;
+      const embedOk = imgEmbedOk && transOk;
+
       // 커스텀 타이틀바: 바 + 컨트롤 3개(min/max/close) + 최대화 구독 API
       const titlebar = appEl.shadowRoot.querySelector('.titlebar');
       const tbBtns = appEl.shadowRoot.querySelectorAll('.tb-controls .tb-btn').length;
@@ -466,6 +491,7 @@ app.whenReady().then(async () => {
         cjkFontOk,
         headingAnchorOk,
         paletteOk,
+        embedOk,
         titlebarOk,
         marpExportOk,
         reHydrateOk,
@@ -522,6 +548,7 @@ app.whenReady().then(async () => {
     if (!result.cjkFontOk) fail('CJK monospace 폰트 실패 (@font-face 로드/적용)');
     if (!result.headingAnchorOk) fail('헤딩 앵커 스크롤 실패 (data-heading/매칭)');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
+    if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');

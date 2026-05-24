@@ -33,7 +33,7 @@ function parseWikiTarget(inner) {
 }
 
 /** 노트 상대 이미지 경로 → mdv-res:// URL (외부/절대/data 는 그대로) */
-function toResUrl(src, noteDir) {
+export function toResUrl(src, noteDir) {
   if (!src) return null;
   if (/^[a-z][a-z0-9+.\-]*:/i.test(src) || src.startsWith('//') || src.startsWith('#')) {
     return null; // 이미 스킴 있음(http/data/mdv-res…) 또는 프로토콜-상대/앵커
@@ -83,11 +83,25 @@ function wikilinkPlugin(md) {
 
     if (!silent) {
       const { target, heading, alias } = parseWikiTarget(inner);
+
+      if (embed) {
+        // ![[...]] 임베드: placeholder 로 두고 렌더러(hydrateEmbeds)가 비동기로
+        // 이미지(<img>) 또는 노트 transclusion 으로 치환. 미하이드레이트/실패 시 폴백 텍스트.
+        const eo = state.push('mdv_embed_open', 'span', 1);
+        eo.attrSet('class', 'mdv-embed');
+        eo.attrSet('data-raw', target);
+        if (heading) eo.attrSet('data-heading', heading);
+        const et = state.push('text', '', 0);
+        et.content = `📎 ${alias || target}${!alias && heading ? ' › ' + heading : ''}`;
+        state.push('mdv_embed_close', 'span', -1);
+        state.pos = end + 2;
+        return true;
+      }
+
       const resolver = state.env && state.env.resolveWikiLink;
       const dest = resolver ? resolver(target) : null;
       let display = alias || target;
       if (!alias && heading) display = `${target} › ${heading}`;
-      if (embed) display = `📎 ${display}`;
 
       const open = state.push('link_open', 'a', 1);
       open.attrSet('class', dest ? 'wikilink' : 'wikilink broken');

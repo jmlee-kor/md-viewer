@@ -3,7 +3,7 @@
 
 import { LitElement, html, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
-import { renderMarkdown, makeResolver } from './markdown.js';
+import { renderMarkdown, makeResolver, toResUrl } from './markdown.js';
 import { hydrateDiagrams, registerDiagram } from './diagrams/index.js';
 import { hasMarpFrontmatter, renderMarp } from './marp.js';
 import { getSetting, setSetting } from './settings.js';
@@ -11,6 +11,7 @@ import { scrollbarCss } from './scrollbar-css.js';
 import './deck.js';
 
 const MERMAID_THEMES = ['dark', 'default', 'neutral', 'forest'];
+const EMBED_MAX_DEPTH = 3; // ![[note]] transclusion 재귀 최대 깊이 (순환/폭주 방지)
 
 class MdvApp extends LitElement {
   static properties = {
@@ -360,6 +361,26 @@ class MdvApp extends LitElement {
     .note {
       padding: 1.5rem 2.5rem;
       max-width: 60rem;
+    }
+    /* 위키 임베드 */
+    .note .mdv-embed.broken {
+      color: #f48771;
+      text-decoration: underline dotted;
+    }
+    .note .mdv-embed-img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .note .mdv-transclusion {
+      border-left: 3px solid #3a3d41;
+      padding: 0.2rem 0 0.2rem 1rem;
+      margin: 0.6rem 0;
+    }
+    .note .mdv-embed-warn {
+      color: var(--muted, #9aa0a6);
+      font-size: 0.85rem;
+      font-style: italic;
     }
     /* 본문 내 검색 매치 하이라이트 (브라우저 기본 노랑 대신 accent 톤) */
     .note mark,
@@ -1092,6 +1113,69 @@ class MdvApp extends LitElement {
     return false;
   }
 
+  /** 위키 임베드 target → 전체 파일 맵에서 relPath 해석 (이미지/첨부용) */
+  _resolveEmbed(target) {
+    const map = this._index?.embedResolve;
+    if (!map) return null;
+    const key = String(target).trim().replace(/^\.\//, '').toLowerCase();
+    return map[key] || map[key.split('/').pop()] || null;
+  }
+
+  /** ![[...]] placeholder 를 이미지(<img>) 또는 노트 transclusion 으로 치환 (재귀, depth/cycle 가드). */
+  async _hydrateEmbeds(root, chain = [], depth = 0) {
+    const IMG_RE = /\.(png|jpe?g|gif|svg|webp|bmp|avif|ico)$/i;
+    for (const el of root.querySelectorAll('.mdv-embed')) {
+      if (el.dataset.embedDone) continue;
+      el.dataset.embedDone = '1';
+      const raw = el.dataset.raw || '';
+
+      if (IMG_RE.test(raw)) {
+        const rel = this._resolveEmbed(raw) || raw; // 못 찾으면 vault-상대 경로로 시도
+        const url = toResUrl(rel, '');
+        if (url) {
+          const img = document.createElement('img');
+          img.className = 'mdv-embed-img';
+          img.src = url;
+          img.alt = raw;
+          el.replaceWith(img);
+        } else {
+          el.classList.add('broken');
+        }
+        continue;
+      }
+
+      // 노트 transclusion
+      const relPath = this._resolver ? this._resolver(raw) : null;
+      if (!relPath) {
+        el.classList.add('broken');
+        continue;
+      }
+      if (depth >= EMBED_MAX_DEPTH || chain.includes(relPath)) {
+        const warn = document.createElement('div');
+        warn.className = 'mdv-transclusion mdv-embed-warn';
+        warn.textContent = chain.includes(relPath)
+          ? `↻ 순환 임베드: ${relPath}`
+          : `⋯ 임베드 깊이 초과: ${relPath}`;
+        el.replaceWith(warn);
+        continue;
+      }
+      try {
+        const src = await window.mdv.readNote(relPath);
+        const noteDir = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+        const body = src.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, ''); // frontmatter 제거
+        const wrap = document.createElement('div');
+        wrap.className = 'mdv-transclusion';
+        wrap.dataset.src = relPath;
+        wrap.innerHTML = renderMarkdown(body, { resolveWikiLink: this._resolver, noteDir }); // 이미 DOMPurify 통과
+        el.replaceWith(wrap);
+        hydrateDiagrams(wrap); // 중첩 다이어그램
+        await this._hydrateEmbeds(wrap, [...chain, relPath], depth + 1); // 중첩 임베드
+      } catch {
+        el.classList.add('broken');
+      }
+    }
+  }
+
   updated(changed) {
     // 노트 article 이 (재)생성될 수 있는 변경: 새 노트(_noteHtml) / 원본↔렌더(_rawView)
     // / marp 평문↔덱(_marpAsPlain). 원본→렌더 복귀처럼 _noteHtml 문자열이 동일해도
@@ -1100,6 +1184,7 @@ class MdvApp extends LitElement {
       const note = this.renderRoot.querySelector('.note');
       if (note) {
         hydrateDiagrams(note); // placeholder dataset.hydrated 로 멱등
+        this._hydrateEmbeds(note, this._selected ? [this._selected] : []); // ![[...]] 임베드/transclusion
         this._setupHeadingFold(note); // heading dataset.mdvFold 로 멱등
         this._highlightSearch(note); // 검색어 본문 하이라이트(있으면) + 첫 매치 스크롤
         if (this._pendingHeading) {

@@ -104,6 +104,19 @@ async function buildIndex(files, readNote) {
   return { resolve, backlinks, titles, contents };
 }
 
+/** 위키 임베드(![[...]]) 해석용 맵: 전체 파일(이미지 포함) basename·relPath(소문자)→relPath.
+ *  .md 만 담는 resolve 맵과 별개 — 이미지는 확장자가 살아있어야 한다. */
+function buildEmbedResolve(allFiles) {
+  const map = {};
+  for (const rel of allFiles || []) {
+    const low = rel.toLowerCase();
+    const base = low.split('/').pop();
+    if (!(low in map)) map[low] = rel;
+    if (!(base in map)) map[base] = rel;
+  }
+  return map;
+}
+
 // --- 전문(full-text) 검색 ---
 // buildIndex 가 모은 contents 를 재사용해 main process 에서 in-memory 검색한다.
 // 멀티-term AND 매칭(공백 분리), 본문/제목 어디든 모든 term 포함 시 히트.
@@ -218,5 +231,6 @@ module.exports = {
   parseWikiTarget,
   normKey,
   searchContent,
+  buildEmbedResolve,
   WIKILINK_RE,
 };

@@ -41,6 +41,22 @@ async function scanVault(root) {
   return scanDir(root, root);
 }
 
+/** vault 내 모든 파일(.md 외 이미지/첨부 포함)의 relPath 평탄 목록. 위키 임베드 해석용. */
+async function listFiles(root) {
+  const out = [];
+  async function walk(absDir) {
+    const entries = await fs.readdir(absDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.name.startsWith('.') || IGNORE_DIRS.has(e.name)) continue;
+      const abs = path.join(absDir, e.name);
+      if (e.isDirectory()) await walk(abs);
+      else if (e.isFile()) out.push(path.relative(root, abs).split(path.sep).join('/'));
+    }
+  }
+  await walk(root);
+  return out;
+}
+
 /**
  * vault 내부 경로만 읽기 허용 (path traversal 방어).
  */
@@ -53,4 +69,4 @@ async function readNote(root, relPath) {
   return fs.readFile(abs, 'utf8');
 }
 
-module.exports = { scanVault, readNote };
+module.exports = { scanVault, listFiles, readNote };
