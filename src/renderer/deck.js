@@ -254,11 +254,17 @@ class MdvDeck extends LitElement {
     window.addEventListener('keydown', this._keyHandler);
     this._resizeHandler = () => this._fit();
     window.addEventListener('resize', this._resizeHandler);
-    // 전체화면 진입/종료(Esc 포함)를 상태에 동기화
+    // 전체화면 진입/종료(Esc 포함)를 상태에 동기화.
+    // fullscreenchange 시점엔 아직 뷰포트가 이전 크기 → 즉시 _fit 하면 작게 남는다.
+    // rAF 2회로 레이아웃(전체화면 실치수) 안정화 후 재맞춤. backup 으로 짧은 지연도.
     this._fsHandler = () => {
       this._fullscreen = document.fullscreenElement === this;
-      this._fit();
-      if (this._presenter) this.updateComplete.then(() => this._updatePresenter()); // 패널 재맞춤
+      const refit = () => {
+        this._fit();
+        if (this._presenter) this._updatePresenter();
+      };
+      requestAnimationFrame(() => requestAnimationFrame(refit));
+      setTimeout(refit, 120); // backup (전체화면 전환 애니메이션 등)
     };
     document.addEventListener('fullscreenchange', this._fsHandler);
   }

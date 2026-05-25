@@ -622,10 +622,22 @@ app.whenReady().then(async () => {
       deckEl._onMouseMove();
       await deckEl.updateComplete;
       const fsControlsOk = !!fsCtrlEl && deckEl.shadowRoot.querySelector('.fs-controls.visible') !== null;
+      // [버그] 꽉참: 전체화면 _fit 이 stage 에 정확히 맞춤(확대 캡/패딩 없음)
+      const fsSlide = deckEl.shadowRoot.querySelector('.stage section');
+      let fsFillOk = false;
+      if (fsSlide) {
+        fsSlide.style.zoom = '1';
+        const sw = fsSlide.offsetWidth, sh = fsSlide.offsetHeight;
+        const st = deckEl.shadowRoot.querySelector('.stage');
+        deckEl._fit(); // _fullscreen=true 상태
+        const z = parseFloat(fsSlide.style.zoom);
+        const expected = Math.min(st.clientWidth / sw, st.clientHeight / sh);
+        fsFillOk = sw > 0 && Math.abs(z - expected) < 0.02; // min(1) 캡/패딩 없이 stage 꽉
+      }
       deckEl._fullscreen = false;
       deckEl._controlsVisible = false;
       await deckEl.updateComplete;
-      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk;
+      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk && fsFillOk;
 
       // Marp presenter 모드: 노트 추출 + 현재/다음 패널 + 타이머 + 종료
       deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n<!-- 첫 슬라이드 노트 -->\\n\\n---\\n\\n# B';
