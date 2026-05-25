@@ -190,11 +190,9 @@ function calloutPlugin(md) {
           }
         }
       }
-      // 본문에서 마커 줄 제거 후 인라인 재파싱
-      const rest = nl >= 0 ? inl.content.slice(nl + 1) : '';
-      inl.content = rest;
-      inl.children = [];
-      md.inline.parse(rest, md, state.env, inl.children);
+      // 본문에서 마커 줄만 제거. content 만 갱신 → core 'inline' 룰(이 plugin 이후
+      // 실행)이 파싱한다. (여기서 수동 파싱하면 inline 룰이 또 파싱해 children 중복)
+      inl.content = nl >= 0 ? inl.content.slice(nl + 1) : '';
       // 제목 토큰 삽입 (blockquote_open 다음)
       const titleTok = new state.Token('html_block', '', 0);
       titleTok.content = `<div class="mdv-callout-title">${md.utils.escapeHtml(titleText)}</div>\n`;

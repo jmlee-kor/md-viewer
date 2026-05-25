@@ -83,10 +83,11 @@ app.whenReady().then(async () => {
         && /data-task="todo"/.test(tl) && /data-task="done"/.test(tl)
         && /data-task="doing"/.test(tl) && /data-task="cancelled"/.test(tl);
 
-      // 콜아웃 (> [!type] 제목)
-      const co = window.__mdvTest.renderMarkdown('> [!warning] 주의사항\\n> 본문 내용');
+      // 콜아웃 (> [!type] 제목) — 본문 중복 렌더 안 됨(정확히 1회)
+      const co = window.__mdvTest.renderMarkdown('> [!warning] 주의사항\\n> 본문콘텐츠X');
+      const coBodyCount = (co.match(/본문콘텐츠X/g) || []).length;
       const calloutOk = /mdv-callout mdv-callout-warning/.test(co)
-        && /mdv-callout-title">주의사항/.test(co) && /본문 내용/.test(co);
+        && /mdv-callout-title">주의사항/.test(co) && coBodyCount === 1;
 
       // 코드 syntax highlight (highlight.js) — ~~~ fence(백틱 회피)
       const hl = window.__mdvTest.renderMarkdown('~~~js\\nconst x = 1;\\n~~~');
