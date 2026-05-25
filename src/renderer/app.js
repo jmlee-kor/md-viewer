@@ -1232,6 +1232,7 @@ class MdvApp extends LitElement {
     this._tagFilter = null; // #tag 필터 (선택 시 사이드바에 해당 태그 노트 목록)
     this._scrollPos = new Map(); // relPath → scrollTop (세션 내 스크롤 위치 기억)
     this._pendingScroll = null;
+    this._pendingViewRatio = null; // 원본↔렌더 토글 시 스크롤 비율 보존(높이체계 상이→근사 매핑)
     this._history = []; // 방문 노트 relPath 스택 (뒤로/앞으로)
     this._histIdx = -1;
     this._graphOpen = false; // 링크 그래프 뷰
@@ -2007,13 +2008,20 @@ class MdvApp extends LitElement {
         }
         this._buildToc(note); // 아웃라인(TOC) 갱신
       }
-      // 스크롤 위치 복원 (헤딩 앵커/검색 스크롤이 없을 때만) — 렌더/원본 뷰 공통 .view-scroll
-      // 라이브 인플레이스 갱신(원본 보기 포함, .note 부재)에서도 동작하도록 if(note) 밖에서 처리.
-      if (this._pendingScroll != null && !this._pendingHeading && !this._searchTerms.length) {
-        const vs = this.renderRoot.querySelector('.view-scroll');
-        if (vs) vs.scrollTop = this._pendingScroll;
+      // 스크롤 위치 복원 — 렌더/원본 뷰 공통 .view-scroll. 라이브 인플레이스 갱신(원본 보기
+      // 포함, .note 부재)·원본↔렌더 토글에서도 동작하도록 if(note) 밖에서 처리.
+      const vs = this.renderRoot.querySelector('.view-scroll');
+      if (vs && this._pendingViewRatio != null) {
+        // 원본↔렌더 토글: 비율 매핑. rAF 재적용으로 hydrate(다이어그램/임베드) 후 높이 반영.
+        const ratio = this._pendingViewRatio;
+        const apply = () => { const r = vs.scrollHeight - vs.clientHeight; vs.scrollTop = ratio * (r > 0 ? r : 0); };
+        apply();
+        requestAnimationFrame(apply);
+      } else if (vs && this._pendingScroll != null && !this._pendingHeading && !this._searchTerms.length) {
+        vs.scrollTop = this._pendingScroll;
       }
       this._pendingScroll = null;
+      this._pendingViewRatio = null;
     }
     // 빠른 전환기: 열릴 때 입력 포커스 / 선택 이동 시 활성 항목 가시화
     if (changed.has('_paletteOpen') && this._paletteOpen) {
@@ -2311,6 +2319,13 @@ class MdvApp extends LitElement {
   }
 
   _toggleRaw() {
+    // 원본↔렌더 전환 시 보던 위치 유지 — 두 뷰 높이체계가 달라(원본=라인 monospace /
+    // 렌더=가변 블록) 스크롤 비율(scrollTop/스크롤가능범위)로 근사 매핑.
+    const vs = this.renderRoot.querySelector('.view-scroll');
+    if (vs) {
+      const range = vs.scrollHeight - vs.clientHeight;
+      this._pendingViewRatio = range > 0 ? vs.scrollTop / range : 0;
+    }
     this._rawView = !this._rawView;
   }
 

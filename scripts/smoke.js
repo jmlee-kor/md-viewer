@@ -490,6 +490,25 @@ app.whenReady().then(async () => {
       const liveUpdateScrollOk = liveScrollKeep && liveKeepsRaw && liveApplyFwd;
       await appEl.updateComplete;
 
+      // 원본↔렌더 뷰 전환 시 스크롤 비율 보존 (높이체계 상이→근사 매핑)
+      appEl._marpSrc = null; appEl._searchTerms = []; appEl._rawView = false;
+      await appEl._onSelect('Welcome.md'); await appEl.updateComplete;
+      let toggleRatioOk = false, toggleRestoreOk = false;
+      const vsT = appEl.shadowRoot.querySelector('.view-scroll');
+      if (vsT) {
+        // 렌더 뷰 가정: scrollHeight 1000, client 200 → range 800, scrollTop 400 → 비율 0.5
+        Object.defineProperty(vsT, 'scrollHeight', { configurable: true, get: () => 1000 });
+        Object.defineProperty(vsT, 'clientHeight', { configurable: true, get: () => 200 });
+        let st = 400;
+        Object.defineProperty(vsT, 'scrollTop', { configurable: true, get: () => st, set: (v) => { st = v; } });
+        appEl._toggleRaw(); // 비율 캡처 후 _rawView 토글
+        toggleRatioOk = Math.abs(appEl._pendingViewRatio - 0.5) < 0.001 && appEl._rawView === true;
+        await appEl.updateComplete; // updated()서 비율 복원: 0.5 * 800 = 400
+        toggleRestoreOk = Math.abs(st - 400) < 1;
+      }
+      appEl._rawView = false; await appEl.updateComplete;
+      const viewScrollSyncOk = toggleRatioOk && toggleRestoreOk;
+
       // 뒤로/앞으로 히스토리 (_selected 는 _onSelect 동기부에서 설정 → await 불필요)
       appEl._history = [];
       appEl._histIdx = -1;
@@ -870,6 +889,7 @@ app.whenReady().then(async () => {
         mermaidAutoOk,
         scrollMemOk,
         liveUpdateScrollOk,
+        viewScrollSyncOk,
         historyOk,
         graphOk,
         hoverOk,
@@ -955,6 +975,7 @@ app.whenReady().then(async () => {
     if (!result.mermaidAutoOk) fail('mermaid auto 테마/재렌더 실패');
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
     if (!result.liveUpdateScrollOk) fail('라이브 갱신 스크롤 위치 유지 실패 (캡처/복원/뷰모드 보존)');
+    if (!result.viewScrollSyncOk) fail('원본↔렌더 전환 스크롤 비율 보존 실패');
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
     if (!result.hoverOk) fail('링크 hover 미리보기 실패');
