@@ -2,6 +2,22 @@
 
 사내 폐쇄망(외부 인터넷 차단) 환경에서 동작하는 Obsidian형 Markdown 뷰어.
 
+## 스크린샷
+
+| 렌더링 (콜아웃·수식·코드) | 다이어그램 (Mermaid·draw.io·D2·PlantUML) |
+|---|---|
+| ![렌더링](docs/screenshots/rendering.png) | ![다이어그램](docs/screenshots/diagrams.png) |
+
+| 전문 검색 + 하이라이트 | 그래프 뷰 |
+|---|---|
+| ![검색](docs/screenshots/search.png) | ![그래프](docs/screenshots/graph.png) |
+
+| Marp 슬라이드 |
+|---|
+| ![Marp](docs/screenshots/marp.png) |
+
+> 스크린샷은 `npx electron scripts/capture-screenshots.js` 로 sample-vault 기준 재생성.
+
 ## 설계 원칙
 
 - **런타임 외부 의존 0** — 모든 라이브러리는 `vendor/` 에 포함되어 `git pull` 로 따라온다.
