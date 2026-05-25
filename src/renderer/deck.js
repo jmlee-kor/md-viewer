@@ -90,9 +90,13 @@ class MdvDeck extends LitElement {
       color: #f44747;
       padding: 1.5rem;
     }
-    /* 청중 창(audience): 크롬 숨기고 슬라이드만 검정 배경에 꽉 채운다 */
+    /* 청중 창(audience): 크롬 숨기고 슬라이드만 검정 배경에 꽉 채운다.
+       100vw/100vh 명시 — :host{height:100%}는 컨테이닝블록이 불확정이면 auto 로 풀려
+       grid 1fr 가 슬라이드 자연높이로만 잡힘(전체화면 버그와 동일). 명시 치수로 확정. */
     :host([audience]) {
       background: #000;
+      width: 100vw;
+      height: 100vh;
     }
     :host([audience]) .navbar {
       display: none;

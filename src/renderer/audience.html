@@ -17,10 +17,9 @@
         background: #000;
         overflow: hidden;
       }
-      mdv-deck {
-        display: block;
-        height: 100vh;
-      }
+      /* mdv-deck 의 display/height 를 외부에서 덮지 않는다 — :host{display:grid} 가 깨지면
+         stage 의 grid 1fr 가 무너져 슬라이드가 작게 남는다. 크기는 :host([audience])
+         (100vw/100vh) 가 책임진다. */
     </style>
   </head>
   <body>
