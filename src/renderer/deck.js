@@ -415,8 +415,11 @@ class MdvDeck extends LitElement {
     // fullscreenchange 시점엔 아직 뷰포트가 이전 크기 → 즉시 _fit 하면 작게 남는다.
     // rAF 2회로 레이아웃(전체화면 실치수) 안정화 후 재맞춤. backup 으로 짧은 지연도.
     this._fsHandler = () => {
-      const entering = document.fullscreenElement === this && !this._fullscreen;
-      this._fullscreen = document.fullscreenElement === this;
+      // document.fullscreenElement 는 shadow 경계서 호스트(mdv-app)로 리타게팅돼 이 deck 와
+      // 절대 일치하지 않는다 → :fullscreen 의사클래스(리타게팅 없음)로 판정해야 정확.
+      const isFs = this.matches(':fullscreen');
+      const entering = isFs && !this._fullscreen;
+      this._fullscreen = isFs;
       // 전체화면 재생 진입 시 경과 타이머 자동 시작 (발표자뷰 타이머와 공유)
       if (entering && !this._running) this._startTimer();
       const refit = () => {
@@ -525,7 +528,7 @@ class MdvDeck extends LitElement {
 
   /** 전체화면 재생 토글 (element fullscreen). Esc 는 브라우저가 종료 → fullscreenchange 동기화. */
   _toggleFullscreen() {
-    if (document.fullscreenElement === this) {
+    if (this.matches(':fullscreen')) { // document.fullscreenElement 는 shadow 리타게팅돼 부정확
       document.exitFullscreen?.();
     } else {
       this.requestFullscreen?.().catch(() => {}); // 사용자 제스처 필요 — 실패 무시
