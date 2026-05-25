@@ -420,14 +420,17 @@ app.whenReady().then(async () => {
       const tagOk = tagChipOk && !!tagFilterOk;
 
       // 테마 토글 + 폰트 배율 (document 레벨 적용)
+      const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
       appEl._applyTheme('light');
       const themeLightOk = document.documentElement.dataset.theme === 'light';
+      const lightBtnOk = cssVar('--btn') === '#e2e5ea'; // 버튼 팔레트도 라이트로 전환
       appEl._applyTheme('dark');
       const themeDarkOk = !document.documentElement.dataset.theme;
+      const darkBtnOk = cssVar('--btn') === '#3a3d41';
       appEl._applyFontScale(1.25);
-      const fontScaleOk = getComputedStyle(document.documentElement).getPropertyValue('--font-scale').trim() === '1.25';
+      const fontScaleOk = cssVar('--font-scale') === '1.25';
       appEl._applyFontScale(1);
-      const themeOk = themeLightOk && themeDarkOk && fontScaleOk;
+      const themeOk = themeLightOk && themeDarkOk && fontScaleOk && lightBtnOk && darkBtnOk;
 
       // 노트 스크롤 위치 기억: 재방문 시 저장값을 복원 대상(_pendingScroll)으로
       appEl._marpSrc = null;

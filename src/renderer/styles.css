@@ -20,6 +20,8 @@
   --border: #333; /* 경계선 */
   --code-bg: #2d2d2d; /* 코드/인용 배경 */
   --sel: #2d3a4a; /* 선택/활성 항목 */
+  --btn: #3a3d41; /* 버튼 배경 */
+  --btn-border: #4a4d51; /* 버튼 테두리 */
   --font-scale: 1; /* 콘텐츠 폰트 배율 */
   /* 코드/원본 monospace 스택 (Shadow DOM 으로 상속). 한글 정렬 위해 NanumGothicCoding 우선. */
   --mono: 'NanumGothicCoding', 'Consolas', 'Courier New', monospace;
@@ -35,6 +37,8 @@
   --border: #d0d7de;
   --code-bg: #f3f4f6;
   --sel: #d6e4f5;
+  --btn: #e2e5ea;
+  --btn-border: #c8cdd6;
 }
 
 * {

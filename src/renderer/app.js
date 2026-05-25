@@ -93,7 +93,7 @@ class MdvApp extends LitElement {
       font-size: 0.85rem;
     }
     .tb-btn:hover {
-      background: #3a3d41;
+      background: var(--btn, #3a3d41);
     }
     .tb-close:hover {
       background: #c4302b;
@@ -136,7 +136,7 @@ class MdvApp extends LitElement {
       max-width: 320px;
       padding: 0.8rem;
       background: var(--panel, #252526);
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 10px;
       box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
       opacity: 0;
@@ -179,9 +179,9 @@ class MdvApp extends LitElement {
     }
     .tbtn,
     .menu-panel select {
-      background: #3a3d41;
+      background: var(--btn, #3a3d41);
       color: var(--fg, #d4d4d4);
-      border: 1px solid #4a4d51;
+      border: 1px solid var(--btn-border, #4a4d51);
       padding: 6px 10px;
       border-radius: 6px;
       cursor: pointer;
@@ -204,7 +204,7 @@ class MdvApp extends LitElement {
     }
     .menu-sep {
       height: 1px;
-      background: #3a3d41;
+      background: var(--btn, #3a3d41);
       margin: 0.15rem 0;
     }
     .menu-label {
@@ -230,7 +230,7 @@ class MdvApp extends LitElement {
       text-align: left;
       background: var(--panel2, #2d2f33);
       color: var(--fg, #d4d4d4);
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 5px;
       padding: 4px 8px;
       font-size: 0.8rem;
@@ -246,7 +246,7 @@ class MdvApp extends LitElement {
       flex: 0 0 auto;
       background: transparent;
       color: var(--muted, #9aa0a6);
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 5px;
       cursor: pointer;
       padding: 0 8px;
@@ -264,9 +264,9 @@ class MdvApp extends LitElement {
     .iconbtn {
       flex: 1 1 auto;
       min-width: 34px;
-      background: #3a3d41;
+      background: var(--btn, #3a3d41);
       color: var(--fg, #d4d4d4);
-      border: 1px solid #4a4d51;
+      border: 1px solid var(--btn-border, #4a4d51);
       border-radius: 6px;
       padding: 5px 8px;
       font-size: 0.8rem;
@@ -361,7 +361,7 @@ class MdvApp extends LitElement {
     }
     .toc-item:hover {
       background: var(--sel, #2d3a4a);
-      color: #fff;
+      color: var(--fg, #fff);
     }
     .toc-empty {
       color: var(--muted, #9aa0a6);
@@ -404,7 +404,7 @@ class MdvApp extends LitElement {
     }
     .tabs {
       display: inline-flex;
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 6px;
       overflow: hidden;
     }
@@ -413,7 +413,7 @@ class MdvApp extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 2px;
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 6px;
       overflow: hidden;
       margin-left: auto;
@@ -459,7 +459,7 @@ class MdvApp extends LitElement {
       border-radius: 4px;
     }
     .note .mdv-transclusion {
-      border-left: 3px solid #3a3d41;
+      border-left: 3px solid var(--btn, #3a3d41);
       padding: 0.2rem 0 0.2rem 1rem;
       margin: 0.6rem 0;
     }
@@ -507,7 +507,7 @@ class MdvApp extends LitElement {
       min-width: 0;
       background: var(--panel2, #2a2c2f);
       color: var(--fg, #d4d4d4);
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 6px;
       padding: 5px 8px;
       font-size: 0.85rem;
@@ -563,7 +563,7 @@ class MdvApp extends LitElement {
       font-weight: 500;
       color: var(--muted, #9aa0a6);
       background: var(--panel2, #2a2c2f);
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 8px;
       padding: 0 6px;
       font-variant-numeric: tabular-nums;
@@ -608,14 +608,14 @@ class MdvApp extends LitElement {
       display: flex;
       flex-direction: column;
       background: #252729;
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-radius: 10px;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
       overflow: hidden;
     }
     .palette-input {
       border: 0;
-      border-bottom: 1px solid #3a3d41;
+      border-bottom: 1px solid var(--btn, #3a3d41);
       background: var(--panel2, #2a2c2f);
       color: var(--fg, #d4d4d4);
       font-size: 0.95rem;
@@ -676,8 +676,8 @@ class MdvApp extends LitElement {
     }
     .lb-bar button {
       background: var(--panel2, #2d2f33);
-      color: #fff;
-      border: 1px solid #4a4d51;
+      color: var(--fg, #fff);
+      border: 1px solid var(--btn-border, #4a4d51);
       border-radius: 5px;
       padding: 4px 12px;
       cursor: pointer;
@@ -760,7 +760,7 @@ class MdvApp extends LitElement {
       display: flex;
       flex-direction: column;
       background: var(--panel, #232323);
-      border: 1px solid var(--border, #3a3d41);
+      border: 1px solid var(--border, var(--btn, #3a3d41));
       border-radius: 8px;
       box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
     }
@@ -792,7 +792,7 @@ class MdvApp extends LitElement {
     .set-panel {
       width: min(680px, 92vw);
       background: var(--panel, #252729);
-      border: 1px solid var(--border, #3a3d41);
+      border: 1px solid var(--border, var(--btn, #3a3d41));
       border-radius: 10px;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
       padding: 0.4rem 0.9rem 0.9rem;
@@ -1039,7 +1039,7 @@ class MdvApp extends LitElement {
     }
     /* Obsidian 콜아웃 (> [!type]) */
     .note .mdv-callout {
-      border: 1px solid #3a3d41;
+      border: 1px solid var(--btn, #3a3d41);
       border-left: 4px solid var(--cl, #569cd6);
       border-radius: 6px;
       margin: 0.8rem 0;
