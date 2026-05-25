@@ -646,6 +646,8 @@ class MdvApp extends LitElement {
     /* 다이어그램 클릭 → zoom/pan 라이트박스 */
     .note .mdv-diagram svg {
       cursor: zoom-in;
+      max-width: 100%; /* 컨테이너보다 넓으면 축소 (D2 등 natural 크기 svg) */
+      height: auto;
     }
     .lb-overlay {
       position: fixed;
@@ -1589,7 +1591,9 @@ class MdvApp extends LitElement {
     const sy = e.clientY;
     const ox = this._lb.x;
     const oy = this._lb.y;
+    this._lbDragged = false;
     const move = (ev) => {
+      if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) this._lbDragged = true;
       this._lb.x = ox + (ev.clientX - sx);
       this._lb.y = oy + (ev.clientY - sy);
       this._applyLbTransform();
@@ -1600,6 +1604,16 @@ class MdvApp extends LitElement {
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  }
+
+  /** 라이트박스 빈 배경 클릭 → 닫기. 단 다이어그램 위 클릭/드래그 후 클릭은 제외. */
+  _lbStageClick(e) {
+    if (this._lbDragged) {
+      this._lbDragged = false;
+      return;
+    }
+    if (e.target.closest('.lb-content')) return; // 다이어그램 위 클릭은 닫지 않음
+    this._closeLightbox();
   }
 
   _exportDiagramSvg() {
@@ -2371,20 +2385,15 @@ ${lines.map(
   /** 다이어그램 zoom/pan 라이트박스 오버레이 */
   _renderLightbox() {
     return html`
-      <div class="lb-overlay" @click=${this._closeLightbox}>
-        <div class="lb-bar" @click=${(e) => e.stopPropagation()}>
+      <div class="lb-overlay">
+        <div class="lb-bar">
           <button title="PNG로 내보내기" @click=${this._exportDiagramPng}>PNG</button>
           <button title="SVG로 내보내기" @click=${this._exportDiagramSvg}>SVG</button>
           <button title="맞춤(리셋)" @click=${() => this._fitLightbox()}>⤢</button>
           <button title="닫기 (Esc)" @click=${this._closeLightbox}>✕</button>
         </div>
-        <div
-          class="lb-stage"
-          @click=${(e) => e.stopPropagation()}
-          @wheel=${this._lbWheel}
-          @pointerdown=${this._lbDown}
-        >
-          <div class="lb-content">${unsafeHTML(this._lightboxSvg)}</div>
+        <div class="lb-stage" @click=${this._lbStageClick} @wheel=${this._lbWheel}>
+          <div class="lb-content" @pointerdown=${this._lbDown}>${unsafeHTML(this._lightboxSvg)}</div>
         </div>
       </div>
     `;

@@ -139,6 +139,9 @@ app.whenReady().then(async () => {
       const d2Text = d2div.querySelector('.mdv-diagram svg')?.textContent || '';
       const d2LabelOk = /x/.test(d2Text) && /y/.test(d2Text);
       const d2FO = !!d2div.querySelector('.mdv-diagram foreignObject, .mdv-diagram foreignobject');
+      // [버그] D2 거대 빈영역 방지: 외부 svg 에 width 속성 박혀 자연 크기로 렌더되는지
+      const d2El = d2div.querySelector('.mdv-diagram svg');
+      const d2Sized = !!d2El && d2El.hasAttribute('width') && d2El.hasAttribute('height');
 
       // PlantUML: main process IPC(java -jar). 배선 필수, 실제 렌더는 java/jar 반입 시.
       const plantumlWired = typeof window.mdv.renderPlantUML === 'function';
@@ -632,10 +635,18 @@ app.whenReady().then(async () => {
       appEl._lbWheel({ deltaY: -100, clientX: 100, clientY: 100, preventDefault() {} });
       const zoomChanged = appEl._lb.scale !== scaleBefore;
       const exportApiOk = typeof window.mdv.exportDiagram === 'function';
+      // [버그] 배경 클릭=닫기(드래그 아닐 때), 다이어그램 클릭=유지
+      appEl._lbDragged = false;
+      appEl._lbStageClick({ target: document.createElement('div') }); // content 밖 = 배경
+      const bgCloses = appEl._lightboxOpen === false;
+      appEl._openLightbox(innerSvg);
+      await appEl.updateComplete;
+      appEl._lbStageClick({ target: appEl.shadowRoot.querySelector('.lb-content') }); // content = 유지
+      const contentKeeps = appEl._lightboxOpen === true;
       appEl._closeLightbox();
       await appEl.updateComplete;
       const lbClosed = !appEl.shadowRoot.querySelector('.lb-overlay');
-      const lightboxOk = !!lbEl && lbHasSvg && zoomChanged && exportApiOk && lbClosed;
+      const lightboxOk = !!lbEl && lbHasSvg && zoomChanged && exportApiOk && bgCloses && contentKeeps && lbClosed;
 
       // 다이어그램 메모이즈: 같은 소스 두 번째 hydrate 는 캐시 히트로 svg 즉시
       const mk1 = document.createElement('div');
@@ -743,7 +754,7 @@ app.whenReady().then(async () => {
         memoizeOk,
         diagramSanitizeOk,
         sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
-        mermaidFO, mermaidLabelOk, d2LabelOk, d2FO,
+        mermaidFO, mermaidLabelOk, d2LabelOk, d2FO, d2Sized,
         scrollDiag: {
           hostDisp: getComputedStyle(appEl).display, // flex 여야 함 (document display:block 덮어쓰기 회귀 감지)
           bodyH: appEl.shadowRoot.querySelector('.body').clientHeight,
@@ -824,6 +835,7 @@ app.whenReady().then(async () => {
     if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
     if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
     if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');
+    if (!result.d2Sized) fail('d2 svg width/height 누락 — 거대 빈영역 회귀');
     console.log(`다이어그램 라벨: mermaid(FO=${result.mermaidFO}) OK, d2(FO=${result.d2FO}) OK`);
   } catch (e) {
     fail(String(e));
