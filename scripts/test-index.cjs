@@ -64,6 +64,11 @@ const ROOT = path.join(__dirname, '..', 'sample-vault');
   assert.equal(linkIndex.searchContent(index.contents, index.titles, '존재안함zzqqxx').length, 0, '미존재어 → 0');
   assert.equal(linkIndex.searchContent(index.contents, index.titles, 'a').length, 0, '1글자 → 0(미검색)');
 
+  // --- 쇼케이스 노트(Features/렌더링.md) + 태그 인덱스 ---
+  assert.ok(index.contents['Features/렌더링.md'], '렌더링 데모 노트 인덱싱됨');
+  assert.ok((index.tagIndex['데모'] || []).includes('Features/렌더링.md'), '#데모 태그 → 렌더링 노트');
+  assert.ok((index.tagIndex['렌더링'] || []).includes('Features/렌더링.md'), '#렌더링 태그 → 렌더링 노트');
+
   console.log('INDEX TEST PASS ✅ (resolve 키', Object.keys(index.resolve).length, ', 백링크 대상', Object.keys(index.backlinks).length, ', 검색 contents', Object.keys(index.contents).length, ')');
 })().catch((e) => {
   console.error('INDEX TEST FAIL:', e.message);

@@ -9,8 +9,9 @@
 
 - [[Features/마크다운 기본]] — 서식 · 표 · 코드 · 인용 · 체크박스
 - [[Features/위키링크와 백링크]] — `[[링크]]` · 별칭 · 헤딩 앵커 · 백링크
+- [[Features/렌더링]] — 콜아웃 · 수식(KaTeX) · 코드 하이라이트 · 태그 · 임베드
 - [[Diagrams]] — Mermaid · draw.io · D2 · PlantUML
-- [[Slides]] — Marp 슬라이드 (`marp: true`)
+- [[Slides]] — Marp 슬라이드 (`marp: true`, 전체화면/발표자)
 - [[Projects/Roadmap]] — 체크박스 다단계 상태
 
 ## 핵심 기능 체크리스트
