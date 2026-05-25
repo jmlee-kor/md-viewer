@@ -602,6 +602,20 @@ class MdvDeck extends LitElement {
     }
   }
 
+  /** 전체화면/발표자/청중 재생 중 플레인 휠로 슬라이드 네비(아래=다음, 위=이전).
+   *  Ctrl+휠은 앱 줌에 양보. 연속 휠은 한 스텝만(트랙패드 폭주 방지). */
+  _onWheel(e) {
+    if (e.ctrlKey) return; // Ctrl+휠 = 앱 확대/축소 → 가로채지 않음
+    if (!(this._fullscreen || this._presenter || this.audience)) return; // 재생 컨텍스트에서만
+    e.preventDefault();
+    const now = Date.now();
+    if (now - (this._lastWheel || 0) < 280) return;
+    this._lastWheel = now;
+    const next = e.deltaY > 0;
+    if (this.audience) window.mdv?.navPresent?.(next ? 'next' : 'prev'); // 청중→발표자 전달
+    else this._show(this._index + (next ? 1 : -1));
+  }
+
   _onKey(e) {
     // 청중 창 deck 은 자체 네비 금지(발표자만 제어) — ESC 종료는 audience.js 가 처리.
     if (this.audience) return;
@@ -611,8 +625,8 @@ class MdvDeck extends LitElement {
     const k = e.key;
     // 블랙/화이트 스크린 중엔 아무 키나 해제 (표준 발표 동작)
     if (this._blank) { e.preventDefault(); this._blank = null; return; }
-    if (k === 'ArrowRight' || k === 'PageDown' || k === ' ') { e.preventDefault(); this._show(this._index + 1); }
-    else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); this._show(this._index - 1); }
+    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === ' ') { e.preventDefault(); this._show(this._index + 1); }
+    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); this._show(this._index - 1); }
     else if (k === 'Home') { e.preventDefault(); this._show(0); }
     else if (k === 'End') { e.preventDefault(); this._show(this._count - 1); }
     else if (k === 'f' || k === 'F' || k === 'F11') { e.preventDefault(); this._toggleFullscreen(); }
@@ -753,7 +767,7 @@ class MdvDeck extends LitElement {
     if (this._presenter) return this._renderPresenter();
     return html`
       <style>${this._css}</style>
-      <div class="stage" @mousemove=${this._onMouseMove} @click=${this._onStageClick}>${unsafeHTML(this._html)}</div>
+      <div class="stage" @mousemove=${this._onMouseMove} @click=${this._onStageClick} @wheel=${this._onWheel}>${unsafeHTML(this._html)}</div>
       <div class="navbar">
         <button @click=${() => this._show(this._index - 1)} ?disabled=${this._index <= 0}>◀</button>
         <span class="counter">${this._count ? this._index + 1 : 0} / ${this._count}</span>
@@ -855,7 +869,7 @@ class MdvDeck extends LitElement {
     const last = this._index >= this._count - 1;
     return html`
       <style>${this._css}</style>
-      <div class="presenter">
+      <div class="presenter" @wheel=${this._onWheel}>
         <div class="pr-bar">
           <span class="pr-timer">${this._fmtTime(this._elapsed)}</span>
           <button @click=${this._toggleTimer} title=${this._running ? '일시정지' : '시작'}>

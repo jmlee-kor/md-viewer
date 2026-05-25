@@ -25,8 +25,8 @@ window.mdv.onPresentState((state) => {
 // 청중 창 키: ESC=발표 종료, 네비 키는 발표자(소스 오브 트루스)로 전달 → 양쪽 동기.
 // (청중 deck 은 직접 네비 안 함 — 발표자가 _show 후 present:state 로 되돌려준다.)
 const NAV = {
-  ArrowRight: 'next', PageDown: 'next', ' ': 'next',
-  ArrowLeft: 'prev', PageUp: 'prev', Backspace: 'prev',
+  ArrowRight: 'next', ArrowDown: 'next', PageDown: 'next', ' ': 'next',
+  ArrowLeft: 'prev', ArrowUp: 'prev', PageUp: 'prev', Backspace: 'prev',
   Home: 'first', End: 'last',
   b: 'black', B: 'black', w: 'white', W: 'white',
 };

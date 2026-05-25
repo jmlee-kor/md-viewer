@@ -891,6 +891,19 @@ app.whenReady().then(async () => {
       deckEl._blank = null;
       const presentDualOk = presentApiOk && audNavbarHidden && audFitOk && audKeyIgnored && audShowOk && triggerOk && presentNavOk;
 
+      // 전체화면 ↑/↓ 키 + 플레인 휠 슬라이드 네비 (Ctrl+휠=줌 양보, 비재생=무시)
+      deckEl._presenting = false; deckEl._fullscreen = true; deckEl._blank = null;
+      deckEl._show(0);
+      const kev = (key) => deckEl._onKey({ key, composedPath: () => [document.body], preventDefault() {} });
+      kev('ArrowDown'); const arrowDownOk = deckEl._index === 1;
+      kev('ArrowUp'); const arrowUpOk = deckEl._index === 0;
+      const wev = (deltaY, ctrlKey) => { deckEl._lastWheel = 0; deckEl._onWheel({ deltaY, ctrlKey, preventDefault() {} }); };
+      wev(100, false); const wheelNextOk = deckEl._index === 1;
+      wev(-100, false); const wheelPrevOk = deckEl._index === 0;
+      wev(100, true); const wheelCtrlYield = deckEl._index === 0; // Ctrl+휠은 앱 줌에 양보(네비 X)
+      deckEl._fullscreen = false; wev(100, false); const wheelWindowedYield = deckEl._index === 0; // 비재생=무시
+      const wheelNavOk = arrowDownOk && arrowUpOk && wheelNextOk && wheelPrevOk && wheelCtrlYield && wheelWindowedYield;
+
       // 다이어그램 zoom/pan 라이트박스: 클릭 오픈 + 휠 줌 + export API + 닫기
       const dWrap = document.createElement('div');
       dWrap.className = 'mdv-diagram';
@@ -1040,6 +1053,7 @@ app.whenReady().then(async () => {
         presentUiOk,
         presenterOk,
         presentDualOk,
+        wheelNavOk,
         lightboxOk,
         reHydrateOk,
         viewBarOk,
@@ -1129,6 +1143,7 @@ app.whenReady().then(async () => {
     if (!result.presentUiOk) fail('전체화면 발표 UI 실패 (점프키/블랙·화이트/오버뷰/도움말/진행바/클릭내비)');
     if (!result.presenterOk) fail('Marp presenter 모드 실패 (패널/노트/타이머/종료)');
     if (!result.presentDualOk) fail('발표 이중 창 1단계 실패 (preload API/청중 deck/시작 트리거)');
+    if (!result.wheelNavOk) fail('전체화면 ↑/↓·휠 네비 실패 (Ctrl+휠 양보/비재생 무시 포함)');
     if (!result.lightboxOk) fail('다이어그램 라이트박스 실패 (오픈/줌/export API/닫기)');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
