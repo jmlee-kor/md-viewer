@@ -69,7 +69,49 @@ const ROOT = path.join(__dirname, '..', 'sample-vault');
   assert.ok((index.tagIndex['데모'] || []).includes('Features/렌더링.md'), '#데모 태그 → 렌더링 노트');
   assert.ok((index.tagIndex['렌더링'] || []).includes('Features/렌더링.md'), '#렌더링 태그 → 렌더링 노트');
 
-  console.log('INDEX TEST PASS ✅ (resolve 키', Object.keys(index.resolve).length, ', 백링크 대상', Object.keys(index.backlinks).length, ', 검색 contents', Object.keys(index.contents).length, ')');
+  // --- 증분 인덱싱 정확성: 캐시+changed 재빌드 == 변경 후 전체 재빌드 ---
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mdv-inc-'));
+  try {
+    fs.writeFileSync(path.join(tmp, 'a.md'), '# A\n#alpha\n[[b]] 링크');
+    fs.writeFileSync(path.join(tmp, 'b.md'), '# B\n#beta\n[[c]]');
+    fs.writeFileSync(path.join(tmp, 'c.md'), '# C\n#gamma');
+    const read = (rel) => vault.readNote(tmp, rel);
+    const stat = linkIndex.makeStat(tmp);
+    const fileList = linkIndex.flatten(await vault.scanVault(tmp));
+
+    const cache = new Map();
+    await linkIndex.buildIndex(fileList, read, { cache, stat }); // cold(캐시 채움)
+    assert.equal(cache.size, 3, '증분 캐시 3개 채움');
+
+    // a.md 변경: 태그/링크 교체 (#alpha→#delta, [[b]]→[[c]])
+    await new Promise((r) => setTimeout(r, 10));
+    fs.writeFileSync(path.join(tmp, 'a.md'), '# A\n#delta\n[[c]] 변경됨');
+
+    const inc = await linkIndex.buildIndex(fileList, read, {
+      cache, stat, changed: new Set(['a.md']),
+    });
+    // 변경 후 상태를 캐시 없이 새로 전체 빌드
+    const full = await linkIndex.buildIndex(fileList, read);
+
+    assert.deepEqual(inc.backlinks, full.backlinks, '증분 backlinks == 전체 backlinks');
+    assert.deepEqual(inc.tagIndex, full.tagIndex, '증분 tagIndex == 전체 tagIndex');
+    assert.deepEqual(inc.contents, full.contents, '증분 contents == 전체 contents');
+    // 검증: 변경 반영 — #delta 등장, #alpha 소멸, c 백링크에 a 추가
+    assert.ok(inc.tagIndex['delta'] && !inc.tagIndex['alpha'], '태그 변경 반영(delta 추가/alpha 제거)');
+    assert.ok((inc.backlinks['c.md'] || []).some((x) => x.from === 'a.md'), 'a→c 링크 반영');
+
+    // 파일 삭제 시 캐시 정리
+    fs.rmSync(path.join(tmp, 'c.md'));
+    const fileList2 = linkIndex.flatten(await vault.scanVault(tmp));
+    await linkIndex.buildIndex(fileList2, read, { cache, stat, changed: new Set(['c.md']) });
+    assert.ok(!cache.has('c.md'), '삭제 파일 캐시 정리됨');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  console.log('INDEX TEST PASS ✅ (resolve 키', Object.keys(index.resolve).length, ', 백링크 대상', Object.keys(index.backlinks).length, ', 검색 contents', Object.keys(index.contents).length, ', 증분 정확성 ✅)');
 })().catch((e) => {
   console.error('INDEX TEST FAIL:', e.message);
   process.exit(1);

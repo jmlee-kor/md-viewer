@@ -24,3 +24,6 @@ tools/*
 
 # 로컬 설정 (java/jar/dot 경로) — PC 별로 다름
 mdv.config.json
+
+# 대용량 vault 성능 측정용 합성 데이터 (gen-large-vault.cjs)
+.large-vault/

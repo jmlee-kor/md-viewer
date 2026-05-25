@@ -3,6 +3,9 @@
 // 위키링크 인덱스: 제목→경로 해석 맵 + 역방향(백링크) 맵.
 // Obsidian 호환 해석: [[노트]], [[노트|별칭]], [[노트#헤딩]], [[폴더/노트]], ![[임베드]].
 
+const fsp = require('node:fs/promises');
+const path = require('node:path');
+
 const WIKILINK_RE = /(!?)\[\[([^\]\n]+?)\]\]/g;
 
 /** raw target 정규화 키: 소문자, .md 제거, 슬래시 통일, ./ 제거 */
@@ -71,47 +74,106 @@ function resolveTarget(resolve, rawTarget) {
 // #tag (Obsidian 호환): 공백/줄머리 뒤 #영숫자+. 코드펜스/헤딩(# 뒤 공백)은 제외.
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_][\p{L}\p{N}_/-]*)/gu;
 
-async function buildIndex(files, readNote) {
+/** 단일 노트 본문 파싱: #tag(소문자) 목록 + 위키링크 raw 타겟 목록. (resolve 비의존 — 캐시 가능) */
+function parseNote(src) {
+  // #tag 추출 (코드펜스 내부는 간이 제외 — ``` 블록 스트립)
+  const noCode = src.replace(/```[\s\S]*?```/g, '').replace(/~~~[\s\S]*?~~~/g, '');
+  const tags = [];
+  TAG_RE.lastIndex = 0;
+  let tm;
+  while ((tm = TAG_RE.exec(noCode))) tags.push(tm[2].toLowerCase());
+  const rawTargets = [];
+  WIKILINK_RE.lastIndex = 0;
+  let m;
+  while ((m = WIKILINK_RE.exec(src))) {
+    const { target, alias } = parseWikiTarget(m[2]);
+    if (target) rawTargets.push({ target, alias: alias || null });
+  }
+  return { tags, rawTargets };
+}
+
+/** root 기준 mtimeMs 조회 함수 생성 (증분 인덱싱 캐시 무효화 키). */
+function makeStat(root) {
+  return async (relPath) => {
+    try {
+      const st = await fsp.stat(path.resolve(root, relPath));
+      return { mtimeMs: st.mtimeMs };
+    } catch {
+      return null;
+    }
+  };
+}
+
+/**
+ * 전체 vault 인덱스 구축. 증분 지원: opts.cache(Map relPath→{mtimeMs, src, parsed})와
+ * opts.stat(relPath→{mtimeMs}) 가 주어지면, mtime 이 같은 파일은 디스크 재read·재parse 를
+ * 건너뛰고 캐시를 재사용한다. 집계 맵(resolve/backlinks/tagIndex)은 현재 파일 집합 기준으로
+ * 매번 새로 조립하므로 추가/삭제/이름변경에도 정확하다.
+ * @returns { resolve, backlinks, titles, contents, tagIndex }
+ */
+async function buildIndex(files, readNote, opts = {}) {
+  const cache = opts.cache || null; // Map<relPath, {mtimeMs, src, parsed:{tags,rawTargets}}>
+  const stat = opts.stat || null;
+  const changed = opts.changed || null; // Set<relPath> | null — 변경 파일 화이트리스트(앱 경로)
   const resolve = buildResolveMap(files);
   const backlinks = {}; // destRelPath -> [{from, alias}]
   const titles = {};
   const contents = {}; // relPath -> 원문 (전문 검색용. 렌더러로는 전송 안 함 — main 보관)
   const tags = {}; // tag(소문자) -> Set<relPath>
+  const liveKeys = new Set();
 
   for (const f of files) {
-    titles[f.relPath] = f.relPath.replace(/\.md$/i, '').split('/').pop();
-  }
+    const rel = f.relPath;
+    liveKeys.add(rel);
+    titles[rel] = rel.replace(/\.md$/i, '').split('/').pop();
 
-  for (const f of files) {
-    let src;
-    try {
-      src = await readNote(f.relPath);
-    } catch {
-      continue;
+    // 캐시 신선도 판정:
+    //  - opts.changed(변경 relPath Set) 모드: 변경목록에 없는 캐시 파일은 stat 없이 재사용
+    //    (fs.watch 가 변경 파일명을 주는 앱 경로 — stat 비용 0).
+    //  - 그 외 opts.stat 모드: mtimeMs 비교(전체 rescan 등 변경목록을 모를 때 폴백).
+    let entry = cache ? cache.get(rel) : null;
+    let mtimeMs = entry ? entry.mtimeMs : null;
+    let fresh = false;
+    if (entry && cache) {
+      if (changed) {
+        fresh = !changed.has(rel);
+      } else if (stat) {
+        const s = await stat(rel);
+        mtimeMs = s ? s.mtimeMs : null;
+        fresh = mtimeMs != null && entry.mtimeMs === mtimeMs;
+      }
     }
-    contents[f.relPath] = src; // 검색 인덱스로 재사용 (읽기 패스 1회 공유)
-    // #tag 추출 (코드펜스 내부는 간이 제외 — ``` 블록 스트립)
-    const noCode = src.replace(/```[\s\S]*?```/g, '').replace(/~~~[\s\S]*?~~~/g, '');
-    TAG_RE.lastIndex = 0;
-    let tm;
-    while ((tm = TAG_RE.exec(noCode))) {
-      const tag = tm[2].toLowerCase();
-      (tags[tag] ||= new Set()).add(f.relPath);
+    if (!fresh) {
+      if (stat && (changed || !entry)) {
+        const s = await stat(rel); // 새/변경 파일의 mtime 기록(다음 회차 캐시 키)
+        mtimeMs = s ? s.mtimeMs : null;
+      }
+      let src;
+      try {
+        src = await readNote(rel);
+      } catch {
+        if (cache) cache.delete(rel);
+        continue;
+      }
+      entry = { mtimeMs, src, parsed: parseNote(src) };
+      if (cache) cache.set(rel, entry);
     }
-    WIKILINK_RE.lastIndex = 0;
+
+    contents[rel] = entry.src;
+    for (const tag of entry.parsed.tags) (tags[tag] ||= new Set()).add(rel);
     const seen = new Set();
-    let m;
-    while ((m = WIKILINK_RE.exec(src))) {
-      const { target, alias } = parseWikiTarget(m[2]);
-      if (!target) continue;
+    for (const { target, alias } of entry.parsed.rawTargets) {
       const dest = resolveTarget(resolve, target);
-      if (!dest || dest === f.relPath) continue; // 자기참조 제외
-      const dedup = dest + '\n' + f.relPath;
+      if (!dest || dest === rel) continue; // 자기참조 제외
+      const dedup = dest + '\n' + rel;
       if (seen.has(dedup)) continue;
       seen.add(dedup);
-      (backlinks[dest] ||= []).push({ from: f.relPath, alias: alias || null });
+      (backlinks[dest] ||= []).push({ from: rel, alias });
     }
   }
+
+  // 사라진 파일의 캐시 항목 정리 (메모리 누수 방지)
+  if (cache) for (const k of cache.keys()) if (!liveKeys.has(k)) cache.delete(k);
 
   // Set → 정렬 배열로 직렬화 (IPC 전송 가능)
   const tagIndex = {};
@@ -244,6 +306,8 @@ module.exports = {
   buildIndex,
   resolveTarget,
   parseWikiTarget,
+  parseNote,
+  makeStat,
   normKey,
   searchContent,
   buildEmbedResolve,

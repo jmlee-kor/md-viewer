@@ -34,6 +34,8 @@ let currentVaultRoot = null;
 let currentIndex = null;
 let currentContents = {}; // relPath -> 원문 (전문 검색용, main 보관 — 렌더러로 전송 안 함)
 let currentTitles = {};
+// 증분 인덱싱 캐시: relPath -> {mtimeMs, src, parsed}. loadVault 가 변경 파일만 재read/parse.
+let indexCache = new Map();
 /** @type {fs.FSWatcher | null} */
 let watcher = null;
 
@@ -65,12 +67,21 @@ function createWindow() {
   mainWindow.on('unmaximize', sendMax);
 }
 
-/** vault 스캔 + 인덱스 구축 → 렌더러로 보낼 payload */
-async function loadVault(root) {
+/**
+ * vault 스캔 + 인덱스 구축 → 렌더러로 보낼 payload.
+ * @param changed 변경 파일 relPath Set | null. 주어지면 증분(변경 파일만 read/parse),
+ *   null 이면 mtime stat 폴백(수동 rescan) — 단 캐시가 비었으면 어느 쪽이든 전체 read(cold).
+ */
+async function loadVault(root, changed = null) {
+  if (root !== currentVaultRoot) indexCache = new Map(); // vault 전환 시 캐시 무효화(relPath 기준)
   currentVaultRoot = root;
   const tree = await vault.scanVault(root);
   const files = linkIndex.flatten(tree);
-  const index = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel));
+  const index = await linkIndex.buildIndex(files, (rel) => vault.readNote(root, rel), {
+    cache: indexCache,
+    stat: linkIndex.makeStat(root),
+    changed, // fs.watch 가 준 변경 목록(있으면 stat 도 생략)
+  });
   // 위키 임베드(![[...]]) 해석용: 전체 파일(이미지 포함) 맵
   const embedResolve = linkIndex.buildEmbedResolve(await vault.listFiles(root));
   // 본문(contents)은 검색용으로 main 에 보관하고 렌더러 payload 에서는 제외
@@ -90,12 +101,26 @@ function startWatch(root) {
     watcher = null;
   }
   let timer = null;
+  const dirty = new Set(); // 디바운스 창 동안 변경된 .md relPath 누적
+  let sawNull = false; // filename 미보고 이벤트 — 신뢰 불가 → mtime 폴백
   try {
-    watcher = fs.watch(root, { recursive: true }, () => {
+    watcher = fs.watch(root, { recursive: true }, (_event, filename) => {
+      if (filename) {
+        // 비-md(이미지 등) 변경은 매 loadVault 의 scanVault/listFiles 재스캔으로 반영되므로
+        // 인덱스 changed-set 에는 .md 만 누적. (스캔이 tree/embedResolve 를 항상 최신화)
+        const rel = String(filename).split(path.sep).join('/');
+        if (/\.md$/i.test(rel)) dirty.add(rel);
+      } else {
+        sawNull = true; // 일부 플랫폼/이벤트는 filename 미보고 → 신뢰 불가 → mtime 폴백
+      }
       clearTimeout(timer);
       timer = setTimeout(async () => {
+        // 변경 목록을 신뢰할 수 있으면(모든 이벤트가 filename 보고) changed-set 증분, 아니면 mtime 폴백
+        const changed = sawNull ? null : new Set(dirty);
+        dirty.clear();
+        sawNull = false;
         try {
-          const data = await loadVault(root);
+          const data = await loadVault(root, changed);
           mainWindow?.webContents.send('vault:changed', data);
         } catch {
           /* vault 삭제 등 — 무시 */
