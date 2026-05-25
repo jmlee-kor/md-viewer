@@ -16,6 +16,9 @@ class MdvDeck extends LitElement {
     _presenter: { state: true },
     _elapsed: { state: true },
     _running: { state: true },
+    _blank: { state: true }, // 'black' | 'white' | null
+    _helpOpen: { state: true },
+    _overview: { state: true },
   };
 
   static styles = [
@@ -128,6 +131,151 @@ class MdvDeck extends LitElement {
     .fs-controls button:disabled {
       opacity: 0.4;
       cursor: default;
+    }
+    .fs-clock {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.9rem;
+      opacity: 0.85;
+      white-space: nowrap;
+    }
+    /* 하단 진행 바 — 컨트롤과 무관하게 항상 표시 */
+    .fs-progress {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      z-index: 5;
+    }
+    .fs-progress-fill {
+      height: 100%;
+      background: #4aa3ff;
+      transition: width 0.2s ease;
+    }
+    /* 슬라이드 번호 — 우하단 상시 */
+    .fs-pageno {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      background: rgba(20, 20, 20, 0.55);
+      padding: 2px 8px;
+      border-radius: 6px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .fs-numbuf {
+      color: #4aa3ff;
+      font-weight: 700;
+    }
+    /* 블랙/화이트 스크린 */
+    .fs-blank {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      cursor: pointer;
+    }
+    .fs-blank.black {
+      background: #000;
+    }
+    .fs-blank.white {
+      background: #fff;
+    }
+    /* 슬라이드 오버뷰 그리드 */
+    .fs-overview {
+      position: fixed;
+      inset: 0;
+      z-index: 15;
+      background: rgba(10, 10, 10, 0.92);
+      overflow: auto;
+      padding: 24px;
+    }
+    .ov-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .ov-cell {
+      position: relative;
+      padding: 0;
+      border: 2px solid #444;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+    }
+    .ov-cell.current {
+      border-color: #4aa3ff;
+      box-shadow: 0 0 0 3px rgba(74, 163, 255, 0.4);
+    }
+    .ov-thumb {
+      width: 1280px;
+      height: 720px;
+      transform: scale(0.1875); /* 240/1280 */
+      transform-origin: top left;
+      pointer-events: none;
+    }
+    .ov-thumb section {
+      display: block !important;
+      width: 1280px;
+      height: 720px;
+    }
+    .ov-no {
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      background: rgba(20, 20, 20, 0.8);
+      color: #fff;
+      font-size: 0.8rem;
+      padding: 1px 7px;
+      border-radius: 5px;
+    }
+    /* 단축키 도움말 오버레이 */
+    .fs-help {
+      position: fixed;
+      inset: 0;
+      z-index: 18;
+      background: rgba(10, 10, 10, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .help-card {
+      background: #1d1f23;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 12px;
+      padding: 22px 26px;
+      max-width: 560px;
+      cursor: default;
+    }
+    .help-card h3 {
+      margin: 0 0 12px;
+    }
+    .help-card table {
+      border-collapse: collapse;
+    }
+    .help-card td {
+      padding: 4px 14px 4px 0;
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+    .help-card td.key {
+      color: #4aa3ff;
+      font-family: var(--mono, monospace);
+      white-space: nowrap;
+    }
+    .help-close {
+      margin-top: 14px;
+      opacity: 0.55;
+      font-size: 0.8rem;
     }
     /* 발표자(presenter) 뷰 */
     .presenter {
@@ -246,6 +394,10 @@ class MdvDeck extends LitElement {
     this._running = false;
     this._timerId = null;
     this._comments = []; // 슬라이드별 발표자 노트
+    this._blank = null; // 블랙/화이트 스크린
+    this._helpOpen = false; // 단축키 도움말
+    this._overview = false; // 슬라이드 오버뷰 그리드
+    this._numBuf = ''; // 번호 입력 버퍼(Enter 로 점프)
     this._keyHandler = (e) => this._onKey(e);
   }
 
@@ -258,7 +410,10 @@ class MdvDeck extends LitElement {
     // fullscreenchange 시점엔 아직 뷰포트가 이전 크기 → 즉시 _fit 하면 작게 남는다.
     // rAF 2회로 레이아웃(전체화면 실치수) 안정화 후 재맞춤. backup 으로 짧은 지연도.
     this._fsHandler = () => {
+      const entering = document.fullscreenElement === this && !this._fullscreen;
       this._fullscreen = document.fullscreenElement === this;
+      // 전체화면 재생 진입 시 경과 타이머 자동 시작 (발표자뷰 타이머와 공유)
+      if (entering && !this._running) this._startTimer();
       const refit = () => {
         this._fit();
         if (this._presenter) this._updatePresenter();
@@ -305,7 +460,14 @@ class MdvDeck extends LitElement {
     if (!stage) return;
     this._slides = stage.querySelectorAll('section');
     this._count = this._slides.length;
+    // 오버뷰 썸네일용 슬라이드별 HTML 캐시 (display 토글 전 원본 마크업).
+    this._sectionHtmls = Array.from(this._slides).map((s) => s.outerHTML);
     this._show(this._index);
+  }
+
+  /** 오버뷰 셀에 넣을 i번째 슬라이드 HTML (이미 새니타이즈된 _html 의 부분) */
+  _slideHtml(i) {
+    return (this._sectionHtmls && this._sectionHtmls[i]) || '';
   }
 
   _show(i) {
@@ -357,15 +519,34 @@ class MdvDeck extends LitElement {
     // 입력 포커스(검색창 등) 중에는 무시 — composedPath 로 Shadow DOM 내부 실제 타겟 확인
     const real = e.composedPath()[0];
     if (real && (/^(INPUT|TEXTAREA|SELECT)$/.test(real.tagName) || real.isContentEditable)) return;
-    if (e.key === 'ArrowRight' || e.key === 'PageDown') this._show(this._index + 1);
-    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') this._show(this._index - 1);
-    else if (e.key === 'f' || e.key === 'F' || e.key === 'F11') {
-      e.preventDefault();
-      this._toggleFullscreen();
-    } else if (e.key === 'p' || e.key === 'P') {
-      e.preventDefault();
-      this._togglePresenter(); // 전체화면 중에도 발표자뷰 토글 (단일 흐름)
+    const k = e.key;
+    // 블랙/화이트 스크린 중엔 아무 키나 해제 (표준 발표 동작)
+    if (this._blank) { e.preventDefault(); this._blank = null; return; }
+    if (k === 'ArrowRight' || k === 'PageDown' || k === ' ') { e.preventDefault(); this._show(this._index + 1); }
+    else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); this._show(this._index - 1); }
+    else if (k === 'Home') { e.preventDefault(); this._show(0); }
+    else if (k === 'End') { e.preventDefault(); this._show(this._count - 1); }
+    else if (k === 'f' || k === 'F' || k === 'F11') { e.preventDefault(); this._toggleFullscreen(); }
+    else if (k === 'p' || k === 'P') { e.preventDefault(); this._togglePresenter(); } // 전체화면 중에도 발표자뷰
+    else if (k === 'g' || k === 'G') { e.preventDefault(); this._overview = !this._overview; }
+    else if (k === 'b' || k === 'B') { e.preventDefault(); this._blank = this._blank === 'black' ? null : 'black'; }
+    else if (k === 'w' || k === 'W') { e.preventDefault(); this._blank = this._blank === 'white' ? null : 'white'; }
+    else if (k === '?' || k === 'h' || k === 'H') { e.preventDefault(); this._helpOpen = !this._helpOpen; }
+    else if (k === 'Escape') {
+      if (this._overview) this._overview = false;
+      else if (this._helpOpen) this._helpOpen = false;
+      else this._numBuf = '';
+    } else if (/^[0-9]$/.test(k)) {
+      this._numBuf += k; // 번호 입력 누적
+    } else if (k === 'Enter') {
+      if (this._numBuf) { const n = parseInt(this._numBuf, 10); this._numBuf = ''; if (n >= 1) this._show(n - 1); }
     }
+  }
+
+  /** 전체화면 슬라이드 클릭 → 다음 / Shift+클릭 → 이전 (마우스만으로 진행) */
+  _onStageClick(e) {
+    if (!this._fullscreen || e.button !== 0) return;
+    this._show(this._index + (e.shiftKey ? -1 : 1));
   }
 
   _togglePresenter() {
@@ -466,7 +647,7 @@ class MdvDeck extends LitElement {
     if (this._presenter) return this._renderPresenter();
     return html`
       <style>${this._css}</style>
-      <div class="stage" @mousemove=${this._onMouseMove}>${unsafeHTML(this._html)}</div>
+      <div class="stage" @mousemove=${this._onMouseMove} @click=${this._onStageClick}>${unsafeHTML(this._html)}</div>
       <div class="navbar">
         <button @click=${() => this._show(this._index - 1)} ?disabled=${this._index <= 0}>◀</button>
         <span class="counter">${this._count ? this._index + 1 : 0} / ${this._count}</span>
@@ -481,16 +662,77 @@ class MdvDeck extends LitElement {
         <button class="exp" data-export @click=${() => this._export('html')} title="HTML로 내보내기">HTML</button>
       </div>
       ${this._fullscreen
-        ? html`<div class="fs-controls ${this._controlsVisible ? 'visible' : ''}">
-            <button @click=${() => this._show(this._index - 1)} ?disabled=${this._index <= 0}>◀</button>
-            <span class="counter">${this._index + 1} / ${this._count}</span>
-            <button @click=${() => this._show(this._index + 1)} ?disabled=${this._index >= this._count - 1}>▶</button>
-            <span class="nav-sep"></span>
-            <button @click=${this._togglePresenter} title="발표자 보기 (P)">👤</button>
-            <button @click=${this._toggleFullscreen} title="종료 (Esc)">✕</button>
-          </div>`
+        ? html`
+            <div class="fs-progress"><div class="fs-progress-fill" style="width:${this._count ? ((this._index + 1) / this._count) * 100 : 0}%"></div></div>
+            <div class="fs-pageno">${this._index + 1} / ${this._count}${this._numBuf ? html`<span class="fs-numbuf"> → ${this._numBuf}</span>` : ''}</div>
+            <div class="fs-controls ${this._controlsVisible ? 'visible' : ''}">
+              <button @click=${() => this._show(this._index - 1)} ?disabled=${this._index <= 0}>◀</button>
+              <span class="counter">${this._index + 1} / ${this._count}</span>
+              <button @click=${() => this._show(this._index + 1)} ?disabled=${this._index >= this._count - 1}>▶</button>
+              <span class="nav-sep"></span>
+              <span class="fs-clock">${this._clock()} · ⏱ ${this._fmtTime(this._elapsed)}</span>
+              <span class="nav-sep"></span>
+              <button @click=${() => (this._overview = !this._overview)} title="슬라이드 오버뷰 (G)">▦</button>
+              <button @click=${() => (this._helpOpen = !this._helpOpen)} title="단축키 도움말 (?)">?</button>
+              <button @click=${this._togglePresenter} title="발표자 보기 (P)">👤</button>
+              <button @click=${this._toggleFullscreen} title="종료 (Esc)">✕</button>
+            </div>`
         : ''}
+      ${this._overview ? this._renderOverview() : ''}
+      ${this._helpOpen ? this._renderHelp() : ''}
+      ${this._blank ? html`<div class="fs-blank ${this._blank}" @click=${() => (this._blank = null)}></div>` : ''}
     `;
+  }
+
+  /** 현재 시각 HH:MM (벽시계) */
+  _clock() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /** 슬라이드 오버뷰: 전체 슬라이드 썸네일 그리드. 클릭/Enter 로 점프, G/Esc 로 닫기. */
+  _renderOverview() {
+    const items = [];
+    for (let i = 0; i < this._count; i++) {
+      items.push(html`
+        <button
+          class="ov-cell ${i === this._index ? 'current' : ''}"
+          @click=${() => { this._show(i); this._overview = false; }}
+          title="슬라이드 ${i + 1}"
+        >
+          <div class="ov-thumb">${unsafeHTML(this._slideHtml(i))}</div>
+          <div class="ov-no">${i + 1}</div>
+        </button>`);
+    }
+    return html`
+      <div class="fs-overview" @click=${(e) => { if (e.target.classList.contains('fs-overview')) this._overview = false; }}>
+        <div class="ov-grid">${items}</div>
+      </div>`;
+  }
+
+  _renderHelp() {
+    const rows = [
+      ['→ / Space / PageDown / 클릭', '다음 슬라이드'],
+      ['← / Backspace / PageUp / Shift+클릭', '이전 슬라이드'],
+      ['Home / End', '처음 / 끝'],
+      ['숫자 + Enter', '해당 번호로 점프'],
+      ['F / F11', '전체화면 재생'],
+      ['P', '발표자 보기'],
+      ['G', '슬라이드 오버뷰'],
+      ['B / W', '블랙 / 화이트 스크린'],
+      ['? / H', '이 도움말'],
+      ['Esc', '오버레이 닫기 / 전체화면 종료'],
+    ];
+    return html`
+      <div class="fs-help" @click=${() => (this._helpOpen = false)}>
+        <div class="help-card" @click=${(e) => e.stopPropagation()}>
+          <h3>단축키</h3>
+          <table>
+            ${rows.map((r) => html`<tr><td class="key">${r[0]}</td><td>${r[1]}</td></tr>`)}
+          </table>
+          <div class="help-close">아무 곳이나 클릭하거나 ? 로 닫기</div>
+        </div>
+      </div>`;
   }
 
   /** 발표자 뷰: 현재 슬라이드(크게) + 다음 슬라이드(미리보기) + 노트 + 타이머 */

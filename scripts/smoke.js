@@ -639,6 +639,55 @@ app.whenReady().then(async () => {
       await deckEl.updateComplete;
       const marpFsOk = fsBtn && keyGuardOk && fsControlsOk && fsFillOk;
 
+      // 전체화면 발표 UI 보강: 점프키 / 블랙·화이트 / 오버뷰 / 도움말 / 진행바·번호 / 클릭내비
+      deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n---\\n\\n# B\\n\\n---\\n\\n# C';
+      await deckEl.updateComplete;
+      await new Promise((r) => setTimeout(r, 80));
+      await deckEl.updateComplete;
+      const body = document.body;
+      const key = (k, extra = {}) => deckEl._onKey({ key: k, composedPath: () => [body], preventDefault() {}, ...extra });
+      // Home/End
+      key('End'); const endOk = deckEl._index === deckEl._count - 1;
+      key('Home'); const homeOk = deckEl._index === 0;
+      // 숫자 + Enter 점프 (3번 → index 2)
+      key('3'); key('Enter'); const numJumpOk = deckEl._index === 2 && deckEl._numBuf === '';
+      // Space 다음 / Backspace 이전 (경계에서)
+      key('Home'); key(' '); const spaceNextOk = deckEl._index === 1;
+      key('Backspace'); const backPrevOk = deckEl._index === 0;
+      // 블랙/화이트 토글 + 아무 키나 해제
+      key('b'); const blackOk = deckEl._blank === 'black';
+      key('ArrowRight'); const blankAnyKeyClears = deckEl._blank === null && deckEl._index === 0; // 해제만, 이동X
+      key('w'); const whiteOk = deckEl._blank === 'white'; key('w'); const whiteToggleOff = deckEl._blank === null;
+      // 오버뷰 토글 + 그리드 셀 수 == 슬라이드 수
+      key('g'); deckEl._fullscreen = true; await deckEl.updateComplete;
+      const ovCells = deckEl.shadowRoot.querySelectorAll('.fs-overview .ov-cell').length;
+      const overviewOk = deckEl._overview === true && ovCells === deckEl._count;
+      // 오버뷰 셀 클릭 → 점프 + 닫힘
+      const cell1 = deckEl.shadowRoot.querySelectorAll('.fs-overview .ov-cell')[1];
+      cell1 && cell1.click(); await deckEl.updateComplete;
+      const ovClickOk = deckEl._index === 1 && deckEl._overview === false;
+      // 도움말 오버레이
+      key('?'); await deckEl.updateComplete;
+      const helpOk = deckEl._helpOpen === true && !!deckEl.shadowRoot.querySelector('.fs-help .help-card');
+      key('Escape'); const helpEscOk = deckEl._helpOpen === false;
+      // 진행 바 + 슬라이드 번호 상시 (전체화면)
+      await deckEl.updateComplete;
+      const progFill = deckEl.shadowRoot.querySelector('.fs-progress .fs-progress-fill');
+      const pageNo = deckEl.shadowRoot.querySelector('.fs-pageno');
+      const expectPct = ((deckEl._index + 1) / deckEl._count) * 100;
+      const progressOk = !!progFill && Math.abs(parseFloat(progFill.style.width) - expectPct) < 0.5 && !!pageNo;
+      // 클릭 내비: 전체화면 stage 클릭 → 다음, Shift+클릭 → 이전
+      deckEl._index = 0;
+      deckEl._onStageClick({ button: 0, shiftKey: false }); const clickNextOk = deckEl._index === 1;
+      deckEl._onStageClick({ button: 0, shiftKey: true }); const clickPrevOk = deckEl._index === 0;
+      // 클럭 표시
+      const clockOk = /^\\d\\d:\\d\\d$/.test(deckEl._clock());
+      deckEl._fullscreen = false; deckEl._overview = false; deckEl._helpOpen = false; deckEl._blank = null;
+      await deckEl.updateComplete;
+      const presentUiOk = endOk && homeOk && numJumpOk && spaceNextOk && backPrevOk && blackOk
+        && blankAnyKeyClears && whiteOk && whiteToggleOff && overviewOk && ovClickOk && helpOk
+        && helpEscOk && progressOk && clickNextOk && clickPrevOk && clockOk;
+
       // Marp presenter 모드: 노트 추출 + 현재/다음 패널 + 타이머 + 종료
       deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n<!-- 첫 슬라이드 노트 -->\\n\\n---\\n\\n# B';
       await deckEl.updateComplete;
@@ -808,6 +857,7 @@ app.whenReady().then(async () => {
         titlebarOk,
         marpExportOk,
         marpFsOk,
+        presentUiOk,
         presenterOk,
         lightboxOk,
         reHydrateOk,
@@ -891,6 +941,7 @@ app.whenReady().then(async () => {
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
     if (!result.marpExportOk) fail('Marp export(API/덱 버튼) 실패');
     if (!result.marpFsOk) fail('Marp 전체화면 재생 실패 (재생버튼/키가드/fs컨트롤)');
+    if (!result.presentUiOk) fail('전체화면 발표 UI 실패 (점프키/블랙·화이트/오버뷰/도움말/진행바/클릭내비)');
     if (!result.presenterOk) fail('Marp presenter 모드 실패 (패널/노트/타이머/종료)');
     if (!result.lightboxOk) fail('다이어그램 라이트박스 실패 (오픈/줌/export API/닫기)');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
