@@ -6,11 +6,18 @@ import { getSetting } from '../settings.js';
 
 let counter = 0;
 
+// 'auto' → 앱 테마(documentElement.dataset.theme) 따라감: 라이트=default, 다크=dark.
+function resolveMermaidTheme() {
+  const t = getSetting('mermaidTheme', 'auto');
+  if (t === 'auto') return document.documentElement.dataset.theme === 'light' ? 'default' : 'dark';
+  return t; // dark/default/neutral/forest
+}
+
 registerDiagram('mermaid', async (src) => {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
-    theme: getSetting('mermaidTheme', 'dark'), // default/dark/neutral/forest
+    theme: resolveMermaidTheme(),
     fontFamily: '"Segoe UI", system-ui, sans-serif',
   });
   const id = `mmd-${Date.now()}-${counter++}`;

@@ -4,13 +4,13 @@
 import { LitElement, html, svg, css, unsafeHTML } from '../../vendor/lit.js';
 import './tree.js';
 import { renderMarkdown, makeResolver, toResUrl } from './markdown.js';
-import { hydrateDiagrams, registerDiagram } from './diagrams/index.js';
+import { hydrateDiagrams, registerDiagram, clearRenderCache } from './diagrams/index.js';
 import { hasMarpFrontmatter, renderMarp } from './marp.js';
 import { getSetting, setSetting } from './settings.js';
 import { scrollbarCss } from './scrollbar-css.js';
 import './deck.js';
 
-const MERMAID_THEMES = ['dark', 'default', 'neutral', 'forest'];
+const MERMAID_THEMES = ['auto', 'dark', 'default', 'neutral', 'forest']; // auto=앱 테마 따라감
 const EMBED_MAX_DEPTH = 3; // ![[note]] transclusion 재귀 최대 깊이 (순환/폭주 방지)
 
 class MdvApp extends LitElement {
@@ -1316,6 +1316,8 @@ class MdvApp extends LitElement {
     setSetting('theme', next);
     this._applyTheme(next);
     this.requestUpdate(); // 메뉴 라벨 갱신
+    // mermaid 가 'auto' 면 앱 테마 따라 재렌더
+    if (getSetting('mermaidTheme', 'auto') === 'auto') this._rerenderNote();
   }
 
   _applyFontScale(v) {
@@ -2267,7 +2269,13 @@ class MdvApp extends LitElement {
   /** mermaid 테마 변경 → 설정 저장 + 보이는 노트 다이어그램 재렌더(강제 rebuild) */
   _onMermaidTheme(e) {
     setSetting('mermaidTheme', e.target.value);
+    this._rerenderNote();
+  }
+
+  /** 보이는 노트 다이어그램 강제 재렌더 (캐시 무효화 후 placeholder 재생성). */
+  _rerenderNote() {
     if (!this._noteHtml) return;
+    clearRenderCache(); // 캐시는 lang+src 키라 테마 변경이 반영 안 됨 → 비우기
     const html = this._noteHtml;
     this._noteHtml = ''; // 1차: 비우기
     this.updateComplete.then(() => {
@@ -2590,7 +2598,7 @@ ${lines.map(
             <select @change=${this._onMermaidTheme}>
               ${MERMAID_THEMES.map(
                 (t) =>
-                  html`<option value=${t} ?selected=${getSetting('mermaidTheme', 'dark') === t}>
+                  html`<option value=${t} ?selected=${getSetting('mermaidTheme', 'auto') === t}>
                     ${t}
                   </option>`
               )}

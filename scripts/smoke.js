@@ -432,6 +432,28 @@ app.whenReady().then(async () => {
       appEl._applyFontScale(1);
       const themeOk = themeLightOk && themeDarkOk && fontScaleOk && lightBtnOk && darkBtnOk;
 
+      // mermaid 테마 'auto' 옵션 + 재렌더(_rerenderNote: 캐시 무효화→재hydrate)
+      appEl._menuOpen = true;
+      await appEl.updateComplete;
+      const mermaidAutoOpt = Array.from(appEl.shadowRoot.querySelectorAll('option')).some((o) => o.value === 'auto');
+      appEl._menuOpen = false;
+      appEl._marpSrc = null;
+      appEl._rawView = false;
+      appEl._searchTerms = [];
+      appEl._selected = 'm.md';
+      appEl._src = '~~~mermaid\\ngraph TD\\n  A-->B\\n~~~';
+      appEl._renderNoteHtml();
+      for (let i = 0; i < 40; i++) { if (appEl.shadowRoot.querySelector('.note .mdv-diagram svg')) break; await sleep(50); }
+      const reBefore = !!appEl.shadowRoot.querySelector('.note .mdv-diagram svg');
+      appEl._rerenderNote();
+      await appEl.updateComplete;
+      for (let i = 0; i < 40; i++) { if (appEl.shadowRoot.querySelector('.note .mdv-diagram svg')) break; await sleep(50); }
+      const reAfter = !!appEl.shadowRoot.querySelector('.note .mdv-diagram svg');
+      const mermaidAutoOk = mermaidAutoOpt && reBefore && reAfter;
+      appEl._selected = null;
+      appEl._src = '';
+      await appEl.updateComplete;
+
       // 노트 스크롤 위치 기억: 재방문 시 저장값을 복원 대상(_pendingScroll)으로
       appEl._marpSrc = null;
       appEl._searchTerms = [];
@@ -754,6 +776,7 @@ app.whenReady().then(async () => {
         tocOk,
         tagOk,
         themeOk,
+        mermaidAutoOk,
         scrollMemOk,
         historyOk,
         graphOk,
@@ -835,6 +858,7 @@ app.whenReady().then(async () => {
     if (!result.tocOk) fail('아웃라인(TOC) 패널 실패');
     if (!result.tagOk) fail('태그 #tag 칩/필터 실패');
     if (!result.themeOk) fail('테마 토글/폰트 배율 실패');
+    if (!result.mermaidAutoOk) fail('mermaid auto 테마/재렌더 실패');
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');

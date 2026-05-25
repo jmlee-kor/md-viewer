@@ -30,6 +30,12 @@ export function registerDiagram(lang, fn, opts = {}) {
   renderers.set(lang, { fn, trusted: !!opts.trusted });
 }
 
+/** 렌더 결과 메모이즈 비우기 — mermaid 테마 변경 등 동일 소스의 재렌더가 필요할 때.
+ *  (캐시 키는 lang+src 라 테마는 반영 안 되므로 테마 변경 시 명시 무효화) */
+export function clearRenderCache() {
+  renderCache.clear();
+}
+
 /** root 하위의 모든 다이어그램 placeholder 를 렌더한다 (이미 한 것은 건너뜀). */
 export async function hydrateDiagrams(root) {
   const nodes = root.querySelectorAll('.mdv-diagram');

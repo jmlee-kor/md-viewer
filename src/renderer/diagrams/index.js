@@ -5,4 +5,4 @@ import './drawio.js';
 import './d2.js';
 import './plantuml.js';
 
-export { hydrateDiagrams, registerDiagram } from './registry.js';
+export { hydrateDiagrams, registerDiagram, clearRenderCache } from './registry.js';
