@@ -466,6 +466,30 @@ app.whenReady().then(async () => {
       await selPromise;
       await appEl.updateComplete;
 
+      // 라이브 인플레이스 갱신 시 스크롤 위치 유지 (파일 감시 재렌더가 맨 위로 안 튐)
+      appEl._marpSrc = null; appEl._searchTerms = []; appEl._selected = 'Welcome.md';
+      // ① _onSelect 라이브 경로: liveScroll → _pendingScroll, 렌더 뷰 보존
+      appEl._rawView = false;
+      const lp1 = appEl._onSelect('Welcome.md', null, null, false, 137);
+      const liveScrollKeep = appEl._pendingScroll === 137 && appEl._rawView === false;
+      await lp1;
+      // ② 원본 보기 중 라이브 갱신: 뷰 모드(_rawView) 보존 + 스크롤 유지
+      appEl._rawView = true; appEl._selected = 'Welcome.md';
+      const lp2 = appEl._onSelect('Welcome.md', null, null, false, 200);
+      const liveKeepsRaw = appEl._rawView === true && appEl._pendingScroll === 200;
+      await lp2; appEl._rawView = false;
+      // ③ _applyVault(keepSelection) 이 현재 .view-scroll scrollTop 을 캡처해 전달
+      let liveApplyFwd = false;
+      const vsLive = appEl.shadowRoot.querySelector('.view-scroll');
+      if (vsLive) {
+        Object.defineProperty(vsLive, 'scrollTop', { configurable: true, writable: true, value: 88 });
+        appEl._selected = 'Welcome.md'; appEl._marpSrc = null;
+        appEl._applyVault({ root: appEl._root, tree: appEl._tree, index: appEl._index }, true);
+        liveApplyFwd = appEl._pendingScroll === 88;
+      }
+      const liveUpdateScrollOk = liveScrollKeep && liveKeepsRaw && liveApplyFwd;
+      await appEl.updateComplete;
+
       // 뒤로/앞으로 히스토리 (_selected 는 _onSelect 동기부에서 설정 → await 불필요)
       appEl._history = [];
       appEl._histIdx = -1;
@@ -845,6 +869,7 @@ app.whenReady().then(async () => {
         themeOk,
         mermaidAutoOk,
         scrollMemOk,
+        liveUpdateScrollOk,
         historyOk,
         graphOk,
         hoverOk,
@@ -929,6 +954,7 @@ app.whenReady().then(async () => {
     if (!result.themeOk) fail('테마 토글/폰트 배율 실패');
     if (!result.mermaidAutoOk) fail('mermaid auto 테마/재렌더 실패');
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
+    if (!result.liveUpdateScrollOk) fail('라이브 갱신 스크롤 위치 유지 실패 (캡처/복원/뷰모드 보존)');
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
     if (!result.hoverOk) fail('링크 hover 미리보기 실패');

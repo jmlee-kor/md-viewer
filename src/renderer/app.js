@@ -1366,7 +1366,10 @@ class MdvApp extends LitElement {
     this._index = data.index;
     this._resolver = makeResolver(data.index?.resolve);
     if (keepSelection && this._selected) {
-      this._onSelect(this._selected); // 현재 노트 재렌더 (내용 변경 반영)
+      // 라이브 인플레이스 갱신: 현재 스크롤 위치를 캡처해 재렌더 후 복원 (맨 위로 튐 방지)
+      const vs = this.renderRoot.querySelector('.view-scroll');
+      const liveScroll = vs ? vs.scrollTop : null;
+      this._onSelect(this._selected, null, null, false, liveScroll); // 현재 노트 재렌더 (내용 변경 반영)
     } else {
       this._selected = null;
       this._noteHtml = '';
@@ -1683,7 +1686,8 @@ class MdvApp extends LitElement {
     window.mdv.exportDiagram({ format: 'png', data: bytes, name: this._lightboxName });
   }
 
-  async _onSelect(relPath, searchTerms = null, heading = null, fromHistory = false) {
+  async _onSelect(relPath, searchTerms = null, heading = null, fromHistory = false, liveScroll = null) {
+    const live = liveScroll != null; // 파일 감시 라이브 인플레이스 갱신 (현재 뷰/스크롤 보존)
     const sameNote = this._selected === relPath && !this._marpSrc && !this._rawView;
     // 떠나는 노트의 스크롤 위치 저장 (세션 내 복원용)
     const vs = this.renderRoot.querySelector('.view-scroll');
@@ -1694,13 +1698,13 @@ class MdvApp extends LitElement {
       this._history.push(relPath);
       this._histIdx = this._history.length - 1;
     }
-    // 새 노트 복원 대상: 헤딩 앵커가 없을 때만 (헤딩/검색 스크롤이 우선)
-    this._pendingScroll = heading ? null : this._scrollPos.get(relPath) ?? 0;
+    // 복원 대상 스크롤: 라이브 갱신=현재 위치 유지, 그 외=헤딩 없을 때 세션 기억 위치
+    this._pendingScroll = live ? liveScroll : heading ? null : this._scrollPos.get(relPath) ?? 0;
     this._selected = relPath;
     this._error = null;
     this._searchTerms = searchTerms || []; // 트리/위키링크/백링크 경로는 하이라이트 없음
     this._pendingHeading = heading || null; // [[note#heading]] → 렌더 후 스크롤
-    this._rawView = false; // 새 노트는 렌더 뷰 기본
+    if (!live) this._rawView = false; // 새 노트는 렌더 뷰 기본 (라이브 갱신은 현재 뷰 모드 보존)
     try {
       const src = await window.mdv.readNote(relPath);
       this._src = src;
@@ -2002,13 +2006,14 @@ class MdvApp extends LitElement {
           this._pendingHeading = null;
         }
         this._buildToc(note); // 아웃라인(TOC) 갱신
-        // 스크롤 위치 복원 (헤딩 앵커/검색 스크롤이 없을 때만)
-        if (this._pendingScroll != null && !this._pendingHeading && !this._searchTerms.length) {
-          const vs = this.renderRoot.querySelector('.view-scroll');
-          if (vs) vs.scrollTop = this._pendingScroll;
-        }
-        this._pendingScroll = null;
       }
+      // 스크롤 위치 복원 (헤딩 앵커/검색 스크롤이 없을 때만) — 렌더/원본 뷰 공통 .view-scroll
+      // 라이브 인플레이스 갱신(원본 보기 포함, .note 부재)에서도 동작하도록 if(note) 밖에서 처리.
+      if (this._pendingScroll != null && !this._pendingHeading && !this._searchTerms.length) {
+        const vs = this.renderRoot.querySelector('.view-scroll');
+        if (vs) vs.scrollTop = this._pendingScroll;
+      }
+      this._pendingScroll = null;
     }
     // 빠른 전환기: 열릴 때 입력 포커스 / 선택 이동 시 활성 항목 가시화
     if (changed.has('_paletteOpen') && this._paletteOpen) {
