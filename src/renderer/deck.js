@@ -429,11 +429,30 @@ class MdvDeck extends LitElement {
     document.addEventListener('fullscreenchange', this._fsHandler);
   }
 
+  /** stage 가 실제로 리사이즈되는 정확한 순간(전체화면 전환 레이아웃 안정·창 크기 변경·
+   *  사이드바 드래그)마다 _fit 재실행. fullscreenchange 의 rAF/타이머 추측 타이밍이
+   *  실기기 전환 속도를 못 따라가 가끔 작게 남던 레이스를 ResizeObserver 로 확정 해소.
+   *  발표자뷰 토글로 .stage 가 재생성되므로 매 렌더 현재 stage 로 재관찰. */
+  _observeStage() {
+    if (typeof ResizeObserver === 'undefined') return;
+    const stage = this.renderRoot.querySelector('.stage');
+    if (!stage || stage === this._observedStage) return;
+    this._stageRO?.disconnect();
+    this._stageRO = new ResizeObserver(() => this._fit());
+    this._stageRO.observe(stage);
+    this._observedStage = stage;
+  }
+
+  firstUpdated() {
+    this._observeStage();
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this._keyHandler);
     window.removeEventListener('resize', this._resizeHandler);
     document.removeEventListener('fullscreenchange', this._fsHandler);
+    this._stageRO?.disconnect();
     clearTimeout(this._controlsTimer);
     clearInterval(this._timerId);
   }
@@ -441,6 +460,7 @@ class MdvDeck extends LitElement {
   updated(changed) {
     if (changed.has('src')) this._build();
     if (changed.has('_html') && this._html) this._applySlides();
+    if (!this._presenter) this._observeStage(); // 슬라이드뷰 .stage(재)생성 시 관찰 갱신
     // 발표자 뷰: 진입/슬라이드 이동 시 현재·다음 패널 갱신
     if (this._presenter && (changed.has('_presenter') || changed.has('_index') || changed.has('_html'))) {
       this.updateComplete.then(() => this._updatePresenter());

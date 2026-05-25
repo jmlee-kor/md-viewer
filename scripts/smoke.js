@@ -742,10 +742,12 @@ app.whenReady().then(async () => {
         const blk = cssText.match(/:host\\(:fullscreen\\)\\s*\\{[^}]*\\}/);
         fsHostFillOk = !!blk && /height:\\s*100vh/.test(blk[0]) && /width:\\s*100vw/.test(blk[0]);
       } catch (e) { fsHostFillOk = false; }
+      // stage ResizeObserver 부착(전체화면 전환 레이아웃 안정 시 _fit 재실행 — 타이밍 레이스 해소)
+      const fsObserverOk = !!deckEl._stageRO && typeof deckEl._observeStage === 'function';
       deckEl._fullscreen = false;
       deckEl._controlsVisible = false;
       await deckEl.updateComplete;
-      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk && fsFillOk && fsHostFillOk;
+      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk && fsFillOk && fsHostFillOk && fsObserverOk;
 
       // 전체화면 발표 UI 보강: 점프키 / 블랙·화이트 / 오버뷰 / 도움말 / 진행바·번호 / 클릭내비
       deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n---\\n\\n# B\\n\\n---\\n\\n# C';
