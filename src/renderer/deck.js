@@ -258,6 +258,7 @@ class MdvDeck extends LitElement {
     this._fsHandler = () => {
       this._fullscreen = document.fullscreenElement === this;
       this._fit();
+      if (this._presenter) this.updateComplete.then(() => this._updatePresenter()); // 패널 재맞춤
     };
     document.addEventListener('fullscreenchange', this._fsHandler);
   }
@@ -321,7 +322,8 @@ class MdvDeck extends LitElement {
     const h = cur.offsetHeight || 720;
     let scale;
     if (this._fullscreen) {
-      scale = Math.min((stage.clientWidth - 8) / w, (stage.clientHeight - 8) / h);
+      // 화면 꽉참: 제한 축 기준 최대 확대(패딩/레터박스 최소화)
+      scale = Math.min(stage.clientWidth / w, stage.clientHeight / h);
     } else {
       scale = Math.min(1, (stage.clientWidth - 32) / w);
     }
@@ -354,7 +356,15 @@ class MdvDeck extends LitElement {
     else if (e.key === 'f' || e.key === 'F' || e.key === 'F11') {
       e.preventDefault();
       this._toggleFullscreen();
+    } else if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      this._togglePresenter(); // 전체화면 중에도 발표자뷰 토글 (단일 흐름)
     }
+  }
+
+  _togglePresenter() {
+    if (this._presenter) this._exitPresenter();
+    else this._enterPresenter();
   }
 
   // --- 발표자(presenter) 모드 ---
@@ -470,6 +480,7 @@ class MdvDeck extends LitElement {
             <span class="counter">${this._index + 1} / ${this._count}</span>
             <button @click=${() => this._show(this._index + 1)} ?disabled=${this._index >= this._count - 1}>▶</button>
             <span class="nav-sep"></span>
+            <button @click=${this._togglePresenter} title="발표자 보기 (P)">👤</button>
             <button @click=${this._toggleFullscreen} title="종료 (Esc)">✕</button>
           </div>`
         : ''}
@@ -494,6 +505,7 @@ class MdvDeck extends LitElement {
           <span class="counter">${this._count ? this._index + 1 : 0} / ${this._count}</span>
           <button @click=${() => this._show(this._index + 1)} ?disabled=${last}>▶</button>
           <span class="nav-sep"></span>
+          <button @click=${this._toggleFullscreen} title="전체화면 (F)">⛶</button>
           <button @click=${this._exitPresenter} title="발표자 보기 종료">✕</button>
         </div>
         <div class="pr-body">

@@ -615,10 +615,17 @@ app.whenReady().then(async () => {
       const prNotesOk = /첫 슬라이드 노트/.test(deckEl.shadowRoot.querySelector('.pr-notes')?.textContent || '');
       const prTimerFmt = /^\\d\\d:\\d\\d$/.test((deckEl.shadowRoot.querySelector('.pr-timer')?.textContent || '').trim());
       const prRunning = deckEl._running === true;
+      // 통합: 발표자 바에 전체화면 버튼(⛶) + P 키 토글
+      const prHasFsBtn = !!deckEl.shadowRoot.querySelector('.pr-bar button[title^="전체화면"]');
       deckEl._exitPresenter();
       await deckEl.updateComplete;
       const prExited = !deckEl.shadowRoot.querySelector('.presenter');
-      const presenterOk = prEl && prCur && prNext && prNotesOk && prTimerFmt && prRunning && prExited;
+      deckEl._onKey({ key: 'p', composedPath: () => [document.body], preventDefault() {} }); // P 토글 진입
+      const pKeyOpens = deckEl._presenter === true;
+      deckEl._onKey({ key: 'p', composedPath: () => [document.body], preventDefault() {} });
+      const pKeyCloses = deckEl._presenter === false;
+      const presenterOk = prEl && prCur && prNext && prNotesOk && prTimerFmt && prRunning && prExited
+        && prHasFsBtn && pKeyOpens && pKeyCloses;
 
       // 다이어그램 zoom/pan 라이트박스: 클릭 오픈 + 휠 줌 + export API + 닫기
       const dWrap = document.createElement('div');
