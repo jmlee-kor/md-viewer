@@ -455,6 +455,22 @@ class MdvDeck extends LitElement {
     if (!this.audience && window.mdv?.onPresentEnded) {
       this._endedUnsub = window.mdv.onPresentEnded(() => { this._presenting = false; });
     }
+    // (발표자) 청중 창에서 온 네비 의도 실행 → _show/_blank 가 다시 청중으로 동기
+    if (!this.audience && window.mdv?.onPresentNav) {
+      this._navUnsub = window.mdv.onPresentNav((action) => this._onPresentNav(action));
+    }
+  }
+
+  /** 청중 창에서 전달된 네비 실행 (발표자가 소스 오브 트루스). */
+  _onPresentNav(action) {
+    switch (action) {
+      case 'next': this._show(this._index + 1); break;
+      case 'prev': this._show(this._index - 1); break;
+      case 'first': this._show(0); break;
+      case 'last': this._show(this._count - 1); break;
+      case 'black': this._blank = this._blank === 'black' ? null : 'black'; break;
+      case 'white': this._blank = this._blank === 'white' ? null : 'white'; break;
+    }
   }
 
   /** stage 가 실제로 리사이즈되는 정확한 순간(전체화면 전환 레이아웃 안정·창 크기 변경·
@@ -482,6 +498,7 @@ class MdvDeck extends LitElement {
     document.removeEventListener('fullscreenchange', this._fsHandler);
     this._stageRO?.disconnect();
     this._endedUnsub?.();
+    this._navUnsub?.();
     clearTimeout(this._controlsTimer);
     clearInterval(this._timerId);
   }

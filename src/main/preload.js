@@ -69,4 +69,12 @@ contextBridge.exposeInMainWorld('mdv', {
     ipcRenderer.on('present:ended', l);
     return () => ipcRenderer.removeListener('present:ended', l);
   },
+  /** (청중) 네비 의도 전달 → 메인 → 발표자(소스 오브 트루스)가 실행 후 양쪽 동기. action: next|prev|first|last|black|white */
+  navPresent: (action) => ipcRenderer.send('present:nav', action),
+  /** (발표자) 청중 창에서 온 네비 의도 수신. 해제 함수 반환 */
+  onPresentNav: (cb) => {
+    const l = (_e, action) => cb(action);
+    ipcRenderer.on('present:nav', l);
+    return () => ipcRenderer.removeListener('present:nav', l);
+  },
 });

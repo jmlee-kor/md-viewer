@@ -369,7 +369,10 @@ ipcMain.handle('present:open', (_e, src) => {
     },
   });
   audienceWindow.loadFile(path.join(__dirname, '..', 'renderer', 'audience.html'));
-  audienceWindow.once('ready-to-show', () => audienceWindow?.show());
+  audienceWindow.once('ready-to-show', () => {
+    audienceWindow?.showInactive(); // 포커스 안 뺏고 표시 → 발표자 창에서 바로 키보드 조작
+    mainWindow?.focus(); // 발표자(컨트롤) 창 포커스 유지
+  });
   audienceWindow.on('closed', () => {
     audienceWindow = null;
     mainWindow?.webContents.send('present:ended'); // 발표자 단일 창 복귀
@@ -391,6 +394,9 @@ ipcMain.on('present:state', (_e, state) => {
     audienceWindow.webContents.send('present:state', { index: presentState.index, blank: presentState.blank });
   }
 });
+
+// (청중) 네비 의도 → 발표자 창으로 릴레이 (발표자 deck 이 실행 후 인덱스/블랭크 동기)
+ipcMain.on('present:nav', (_e, action) => mainWindow?.webContents.send('present:nav', action));
 
 ipcMain.on('present:close', closeAudience);
 

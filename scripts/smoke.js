@@ -841,7 +841,8 @@ app.whenReady().then(async () => {
 
       // 발표 이중 창(1단계): preload API + 청중 deck(크롬 숨김/contain-fit/키무시) + 발표 시작 트리거
       const presentApiOk = ['startPresent', 'updatePresent', 'endPresent', 'presentReady',
-        'onPresentSrc', 'onPresentState', 'onPresentEnded'].every((k) => typeof window.mdv[k] === 'function');
+        'onPresentSrc', 'onPresentState', 'onPresentEnded', 'navPresent', 'onPresentNav']
+        .every((k) => typeof window.mdv[k] === 'function');
       // 청중 deck: audience 속성 → navbar 숨김 + contain-fit + 자체 키 네비 무시
       const audDeck = document.createElement('mdv-deck');
       audDeck.setAttribute('audience', '');
@@ -878,7 +879,17 @@ app.whenReady().then(async () => {
       deckEl._presenting = false;
       deckEl._exitPresenter();
       await deckEl.updateComplete;
-      const presentDualOk = presentApiOk && audNavbarHidden && audFitOk && audKeyIgnored && audShowOk && triggerOk;
+      // 청중→발표자 네비 전달: _onPresentNav 가 발표자 deck 을 실제 이동/블랭크 (소스 오브 트루스)
+      deckEl._presenting = false; deckEl._blank = null;
+      deckEl._show(0);
+      deckEl._onPresentNav('next'); const navNext = deckEl._index === 1;
+      deckEl._onPresentNav('last'); const navLast = deckEl._index === deckEl._count - 1;
+      deckEl._onPresentNav('first'); const navFirst = deckEl._index === 0;
+      deckEl._onPresentNav('black'); const navBlack = deckEl._blank === 'black';
+      deckEl._onPresentNav('black'); const navBlackOff = deckEl._blank === null;
+      const presentNavOk = navNext && navLast && navFirst && navBlack && navBlackOff;
+      deckEl._blank = null;
+      const presentDualOk = presentApiOk && audNavbarHidden && audFitOk && audKeyIgnored && audShowOk && triggerOk && presentNavOk;
 
       // 다이어그램 zoom/pan 라이트박스: 클릭 오픈 + 휠 줌 + export API + 닫기
       const dWrap = document.createElement('div');

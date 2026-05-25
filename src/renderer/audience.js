@@ -22,11 +22,24 @@ window.mdv.onPresentState((state) => {
   deck._blank = state.blank || null;
 });
 
-// ESC = 발표 전체 종료(양쪽 정리). 청중 창은 이 한 키만 처리.
+// 청중 창 키: ESC=발표 종료, 네비 키는 발표자(소스 오브 트루스)로 전달 → 양쪽 동기.
+// (청중 deck 은 직접 네비 안 함 — 발표자가 _show 후 present:state 로 되돌려준다.)
+const NAV = {
+  ArrowRight: 'next', PageDown: 'next', ' ': 'next',
+  ArrowLeft: 'prev', PageUp: 'prev', Backspace: 'prev',
+  Home: 'first', End: 'last',
+  b: 'black', B: 'black', w: 'white', W: 'white',
+};
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
     window.mdv.endPresent();
+    return;
+  }
+  const action = NAV[e.key];
+  if (action) {
+    e.preventDefault();
+    window.mdv.navPresent(action);
   }
 });
 
