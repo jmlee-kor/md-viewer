@@ -18,9 +18,38 @@ if (!fs.existsSync(src)) {
   process.exit(1);
 }
 
+// 실행 중인 인스턴스가 .exe/.asar 를 잠그면 복사가 실패하고도 옛 바이너리가 남는다
+// (이전엔 조용히 통과 → 새 코드가 설치 안 됨). 먼저 종료시키고, 복사 후 검증한다.
+if (process.platform === 'win32') {
+  try {
+    execFileSync('taskkill', ['/IM', 'md-viewer.exe', '/F'], { stdio: 'pipe' });
+    console.log('실행 중이던 md-viewer 종료(파일 잠금 해제)');
+    // 종료 후 핸들 해제까지 약간의 여유
+    execFileSync('powershell', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 600']);
+  } catch {
+    /* 실행 중이 아니면 taskkill 가 비0 종료 — 무시 */
+  }
+}
+
 fs.rmSync(dest, { recursive: true, force: true });
 fs.cpSync(src, dest, { recursive: true });
-console.log(`설치 완료: ${dest}`);
+
+// 복사 검증: 핵심 산출물(app.asar)이 src 와 동일 크기인지 확인. 불일치면 실패로 종료.
+const relCheck = path.join('resources', 'app.asar');
+const srcAsar = path.join(src, relCheck);
+const destAsar = path.join(dest, relCheck);
+if (fs.existsSync(srcAsar)) {
+  const a = fs.statSync(srcAsar).size;
+  const b = fs.existsSync(destAsar) ? fs.statSync(destAsar).size : -1;
+  if (a !== b) {
+    console.error(
+      `설치 검증 실패: app.asar 크기 불일치 (빌드 ${a} vs 설치 ${b}).\n` +
+        `→ md-viewer 가 아직 실행 중이라 파일이 잠겼을 수 있습니다. 앱 완전 종료 후 다시 시도하세요.`
+    );
+    process.exit(1);
+  }
+}
+console.log(`설치 완료: ${dest} (app.asar 검증 OK)`);
 
 // 사용자 PATH 에 설치 폴더 등록 (Windows, 중복 방지, 최초 1회만 실제 추가)
 if (process.platform === 'win32') {
