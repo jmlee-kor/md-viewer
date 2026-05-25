@@ -450,13 +450,19 @@ app.whenReady().then(async () => {
       appEl._applyTheme('light');
       const themeLightOk = document.documentElement.dataset.theme === 'light';
       const lightBtnOk = cssVar('--btn') === '#e2e5ea'; // 버튼 팔레트도 라이트로 전환
+      // 라이트 모드 가시성: 코드 하이라이트/콜아웃/태그/에러 의미색이 라이트 팔레트로 전환
+      const lightVisOk = cssVar('--hl-comment') === '#6e7781' && cssVar('--hl-keyword') === '#cf222e'
+        && cssVar('--cl-tip') === '#1a7f64' && cssVar('--cl-warn') === '#9a6700'
+        && cssVar('--tag-fg') === '#1a7f64' && cssVar('--danger-fg') === '#cf222e';
       appEl._applyTheme('dark');
       const themeDarkOk = !document.documentElement.dataset.theme;
       const darkBtnOk = cssVar('--btn') === '#3a3d41';
+      const darkVisOk = cssVar('--hl-comment') === '#8b949e' && cssVar('--cl-tip') === '#4ec9b0'; // 다크 복귀
       appEl._applyFontScale(1.25);
       const fontScaleOk = cssVar('--font-scale') === '1.25';
       appEl._applyFontScale(1);
-      const themeOk = themeLightOk && themeDarkOk && fontScaleOk && lightBtnOk && darkBtnOk;
+      const themeOk = themeLightOk && themeDarkOk && fontScaleOk && lightBtnOk && darkBtnOk
+        && lightVisOk && darkVisOk;
 
       // mermaid 테마 'auto' 옵션 + 재렌더(_rerenderNote: 캐시 무효화→재hydrate)
       appEl._menuOpen = true;

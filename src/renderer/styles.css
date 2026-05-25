@@ -25,6 +25,26 @@
   --font-scale: 1; /* 콘텐츠 폰트 배율 */
   /* 코드/원본 monospace 스택 (Shadow DOM 으로 상속). 한글 정렬 위해 NanumGothicCoding 우선. */
   --mono: 'NanumGothicCoding', 'Consolas', 'Courier New', monospace;
+  /* highlight.js 토큰 색 (기본=github-dark). 라이트에서 재정의. Shadow DOM 상속. */
+  --hl-fg: #c9d1d9;
+  --hl-comment: #8b949e;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-title: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-addition: #aff5b4;
+  --hl-deletion: #ffdcd7;
+  /* 본문 의미색 (콜아웃 타입/태그/마커/에러) — 라이트에서 대비 보정 */
+  --cl-info: #569cd6;
+  --cl-tip: #4ec9b0;
+  --cl-warn: #d8a657;
+  --cl-danger: #f48771;
+  --cl-quote: #c586c0;
+  --tag-fg: #4ec9b0;
+  --tag-bg: rgba(78, 201, 176, 0.13);
+  --tag-bg-hover: rgba(78, 201, 176, 0.28);
+  --danger-fg: #f48771;
 }
 
 :root[data-theme='light'] {
@@ -39,6 +59,26 @@
   --sel: #d6e4f5;
   --btn: #e2e5ea;
   --btn-border: #c8cdd6;
+  /* highlight.js github-light 팔레트 (code-bg #f3f4f6 위 WCAG AA 대비) */
+  --hl-fg: #1f2328;
+  --hl-comment: #6e7781;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-title: #6639ba;
+  --hl-type: #953800;
+  --hl-addition: #116329;
+  --hl-deletion: #82071e;
+  /* 본문 의미색 (라이트 — WCAG AA on #fff/#f3f4f6) */
+  --cl-info: #0969da;
+  --cl-tip: #1a7f64;
+  --cl-warn: #9a6700;
+  --cl-danger: #cf222e;
+  --cl-quote: #8250df;
+  --tag-fg: #1a7f64;
+  --tag-bg: rgba(26, 127, 100, 0.12);
+  --tag-bg-hover: rgba(26, 127, 100, 0.22);
+  --danger-fg: #cf222e;
 }
 
 * {

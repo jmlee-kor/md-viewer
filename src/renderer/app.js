@@ -450,7 +450,7 @@ class MdvApp extends LitElement {
     }
     /* 위키 임베드 */
     .note .mdv-embed.broken {
-      color: #f48771;
+      color: var(--danger-fg, #f48771);
       text-decoration: underline dotted;
     }
     .note .mdv-embed-img {
@@ -967,13 +967,13 @@ class MdvApp extends LitElement {
     .note pre.hljs code {
       tab-size: 4;
     }
-    /* highlight.js 토큰 색 (github-dark 계열, .note 스코프) */
+    /* highlight.js 토큰 색 — 테마 변수(styles.css :root / [data-theme=light]). .note 스코프 */
     .note .hljs {
-      color: #c9d1d9;
+      color: var(--hl-fg);
     }
     .note .hljs-comment,
     .note .hljs-quote {
-      color: #8b949e;
+      color: var(--hl-comment);
       font-style: italic;
     }
     .note .hljs-keyword,
@@ -981,32 +981,32 @@ class MdvApp extends LitElement {
     .note .hljs-built_in,
     .note .hljs-name,
     .note .hljs-tag {
-      color: #ff7b72;
+      color: var(--hl-keyword);
     }
     .note .hljs-string,
     .note .hljs-attr,
     .note .hljs-template-tag,
     .note .hljs-regexp,
     .note .hljs-meta .hljs-string {
-      color: #a5d6ff;
+      color: var(--hl-string);
     }
     .note .hljs-number,
     .note .hljs-literal,
     .note .hljs-variable,
     .note .hljs-template-variable {
-      color: #79c0ff;
+      color: var(--hl-number);
     }
     .note .hljs-title,
     .note .hljs-section,
     .note .hljs-selector-id {
-      color: #d2a8ff;
+      color: var(--hl-title);
     }
     .note .hljs-type,
     .note .hljs-symbol,
     .note .hljs-bullet,
     .note .hljs-meta,
     .note .hljs-attribute {
-      color: #ffa657;
+      color: var(--hl-type);
     }
     .note .hljs-emphasis {
       font-style: italic;
@@ -1015,10 +1015,10 @@ class MdvApp extends LitElement {
       font-weight: bold;
     }
     .note .hljs-addition {
-      color: #aff5b4;
+      color: var(--hl-addition);
     }
     .note .hljs-deletion {
-      color: #ffdcd7;
+      color: var(--hl-deletion);
     }
     /* 수식 (KaTeX) */
     .note .mdv-math-block {
@@ -1028,7 +1028,7 @@ class MdvApp extends LitElement {
       text-align: center;
     }
     .note .mdv-math-error {
-      color: #f48771;
+      color: var(--danger-fg, #f48771);
       background: rgba(244, 135, 113, 0.12);
     }
     .note blockquote {
@@ -1054,22 +1054,22 @@ class MdvApp extends LitElement {
     .note .mdv-callout > :not(.mdv-callout-title):last-child {
       margin-bottom: 0;
     }
-    /* 타입별 색 (--cl). 미정의 타입은 기본 note 색 */
+    /* 타입별 색 (--cl, 테마 변수). 미정의 타입은 기본 note 색 */
     .note .mdv-callout-note,
-    .note .mdv-callout-info { --cl: #569cd6; }
+    .note .mdv-callout-info { --cl: var(--cl-info); }
     .note .mdv-callout-tip,
     .note .mdv-callout-success,
-    .note .mdv-callout-check { --cl: #4ec9b0; }
+    .note .mdv-callout-check { --cl: var(--cl-tip); }
     .note .mdv-callout-warning,
     .note .mdv-callout-caution,
-    .note .mdv-callout-attention { --cl: #d8a657; }
+    .note .mdv-callout-attention { --cl: var(--cl-warn); }
     .note .mdv-callout-danger,
     .note .mdv-callout-error,
     .note .mdv-callout-bug,
-    .note .mdv-callout-fail { --cl: #f48771; }
+    .note .mdv-callout-fail { --cl: var(--cl-danger); }
     .note .mdv-callout-question,
     .note .mdv-callout-quote,
-    .note .mdv-callout-example { --cl: #c586c0; }
+    .note .mdv-callout-example { --cl: var(--cl-quote); }
     .note a {
       color: var(--accent, #569cd6);
     }
@@ -1078,15 +1078,15 @@ class MdvApp extends LitElement {
     .mdv-tag {
       display: inline-block;
       font-size: 0.82em;
-      color: #4ec9b0;
-      background: rgba(78, 201, 176, 0.13);
+      color: var(--tag-fg, #4ec9b0);
+      background: var(--tag-bg, rgba(78, 201, 176, 0.13));
       border-radius: 10px;
       padding: 0 0.5em;
       text-decoration: none;
       cursor: pointer;
     }
     .note .mdv-tag:hover {
-      background: rgba(78, 201, 176, 0.28);
+      background: var(--tag-bg-hover, rgba(78, 201, 176, 0.28));
     }
     .tagfilter-head {
       display: flex;
@@ -1104,7 +1104,7 @@ class MdvApp extends LitElement {
     }
     .note th,
     .note td {
-      border: 1px solid #444;
+      border: 1px solid var(--border, #444);
       padding: 0.4em 0.7em;
     }
     .note img {
@@ -1146,11 +1146,11 @@ class MdvApp extends LitElement {
       text-decoration: line-through;
     }
     .note li[data-task='doing'] .task-marker {
-      border-color: #d8a657;
+      border-color: var(--cl-warn, #d8a657);
     }
     .note li[data-task='doing'] .task-marker::after {
       content: '/';
-      color: #d8a657;
+      color: var(--cl-warn, #d8a657);
     }
     .note li[data-task='cancelled'] {
       color: var(--muted, #9aa0a6);
@@ -1194,8 +1194,8 @@ class MdvApp extends LitElement {
       border-bottom: 1px dashed var(--accent, #569cd6);
     }
     .note a.wikilink.broken {
-      color: #c97b7b;
-      border-bottom-color: #c97b7b;
+      color: var(--danger-fg, #c97b7b);
+      border-bottom-color: var(--danger-fg, #c97b7b);
       cursor: help;
     }
   `,
