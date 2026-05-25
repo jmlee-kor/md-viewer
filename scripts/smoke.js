@@ -78,10 +78,10 @@ app.whenReady().then(async () => {
       const wl = window.__mdvTest.renderMarkdown('[[Diagrams]] · [[없음]] · [[Diagrams|별칭]]', { resolveWikiLink: resolver });
 
       // GFM 태스크리스트 다단계 상태
-      const tl = window.__mdvTest.renderMarkdown('- [ ] 할일\\n- [x] 완료\\n- [/] 진행\\n- [-] 취소');
-      const taskOk = /class="task-marker"/.test(tl)
-        && /data-task="todo"/.test(tl) && /data-task="done"/.test(tl)
-        && /data-task="doing"/.test(tl) && /data-task="cancelled"/.test(tl);
+      const taskHtml = window.__mdvTest.renderMarkdown('- [ ] 할일\\n- [x] 완료\\n- [/] 진행\\n- [-] 취소');
+      const taskOk = /class="task-marker"/.test(taskHtml)
+        && /data-task="todo"/.test(taskHtml) && /data-task="done"/.test(taskHtml)
+        && /data-task="doing"/.test(taskHtml) && /data-task="cancelled"/.test(taskHtml);
 
       // 콜아웃 (> [!type] 제목) — 본문 중복 렌더 안 됨(정확히 1회)
       const co = window.__mdvTest.renderMarkdown('> [!warning] 주의사항\\n> 본문콘텐츠X');
@@ -248,6 +248,30 @@ app.whenReady().then(async () => {
       await t.updateComplete;
       const nestedTree = t.shadowRoot.querySelector('details > mdv-tree');
       const treeIndent = !!nestedTree && parseFloat(getComputedStyle(nestedTree).paddingLeft) > 0;
+
+      // 대용량 트리 lazy: >400 노드면 폴더 기본 접힘 + 펼칠 때만 children 마운트, 선택 조상은 자동 펼침
+      // (이 in-page 스크립트는 외부 템플릿 리터럴이라 백틱/[달러]{} 금지 — 문자열 연결 사용)
+      const bigKids = [];
+      for (let i = 0; i < 5; i++) {
+        const fileNodes = [];
+        for (let j = 0; j < 120; j++) fileNodes.push({ type: 'file', name: 'n' + i + '-' + j + '.md', relPath: 'D' + i + '/n' + i + '-' + j + '.md' });
+        bigKids.push({ type: 'dir', name: 'D' + i, relPath: 'D' + i, children: fileNodes });
+      }
+      const bigTree = document.createElement('mdv-tree'); // 총 5+600=605 노드 > 400 → lazy
+      bigTree.nodes = bigKids;
+      bigTree.selected = 'D2/n2-3.md'; // D2 는 선택 조상 → 자동 펼침
+      document.body.appendChild(bigTree);
+      await bigTree.updateComplete;
+      const lazyOn = bigTree._isLazy() === true;
+      const dets = [...bigTree.shadowRoot.querySelectorAll('li > details')];
+      const d0 = dets.find((d) => (d.querySelector('summary') || {}).textContent === 'D0');
+      const d2 = dets.find((d) => (d.querySelector('summary') || {}).textContent === 'D2');
+      const d0Collapsed = !!d0 && !d0.open && !d0.querySelector('mdv-tree'); // 접힘 + children 미마운트
+      const d2AutoOpen = !!d2 && d2.open && !!d2.querySelector('mdv-tree'); // 선택 조상 자동 펼침 + 마운트
+      d0.open = true; d0.dispatchEvent(new Event('toggle')); // 사용자 펼침
+      await bigTree.updateComplete;
+      const d0Mounts = !!d0.querySelector('mdv-tree'); // 펼치면 children 마운트
+      const treeLazyOk = lazyOn && d0Collapsed && d2AutoOpen && d0Mounts;
 
       // 플로팅 메뉴: 토글 버튼/패널 존재 + 클릭 시 open
       const menuToggle = appEl.shadowRoot.querySelector('.menu-toggle');
@@ -883,6 +907,7 @@ app.whenReady().then(async () => {
         imgServed,
         scrollOk,
         treeIndent,
+        treeLazyOk,
         taskOk,
         menuOk,
         menuActionsOk,
@@ -967,6 +992,7 @@ app.whenReady().then(async () => {
     if (!result.imgServed) fail('mdv-res 프로토콜 이미지 서빙 실패');
     if (!result.scrollOk) fail(`독립 스크롤 실패 — ${JSON.stringify(result.scrollDiag)}`);
     if (!result.treeIndent) fail('파일 트리 중첩 들여쓰기 실패');
+    if (!result.treeLazyOk) fail('대용량 트리 lazy 마운트 실패 (접힘 기본/지연 마운트/선택 조상 자동펼침)');
     if (!result.taskOk) fail('GFM 태스크리스트 체크박스 렌더 실패');
     if (!result.calloutOk) fail('콜아웃(> [!type]) 렌더 실패');
     if (!result.highlightOk) fail('코드 syntax highlight 실패 (hljs 토큰)');
