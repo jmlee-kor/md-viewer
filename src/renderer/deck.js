@@ -102,7 +102,7 @@ class MdvDeck extends LitElement {
       position: fixed;
       bottom: 24px;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, 160%); /* 하단 밖에서 대기 → visible 시 슬라이드인 */
       display: flex;
       align-items: center;
       gap: 0.8rem;
@@ -112,11 +112,12 @@ class MdvDeck extends LitElement {
       padding: 6px 14px;
       color: #fff;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: opacity 0.25s, transform 0.25s ease;
       pointer-events: none;
     }
     .fs-controls.visible {
       opacity: 1;
+      transform: translate(-50%, 0);
       pointer-events: auto;
     }
     .fs-controls button {
@@ -507,12 +508,22 @@ class MdvDeck extends LitElement {
     }
   }
 
-  /** 전체화면 중 마우스 이동 시 컨트롤 잠깐 표시 후 자동 숨김 */
-  _onMouseMove() {
+  /** 전체화면 중 커서가 상/하단 가장자리(~80px hot-zone)에 들어오면 컨트롤 슬라이드인,
+   *  벗어나면 짧은 유예 후 슬라이드아웃. 중앙 이동만으론 안 뜸(슬라이드 감상 방해 최소화). */
+  _onMouseMove(e) {
     if (!this._fullscreen) return;
-    this._controlsVisible = true;
-    clearTimeout(this._controlsTimer);
-    this._controlsTimer = setTimeout(() => (this._controlsVisible = false), 2000);
+    const stage = this.renderRoot.querySelector('.stage');
+    const rect = stage ? stage.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    const HOT = 80; // 가장자리 핫존 두께(px)
+    const y = e?.clientY ?? -1;
+    const inHotZone = y >= rect.bottom - HOT || y <= rect.top + HOT;
+    if (inHotZone) {
+      clearTimeout(this._controlsTimer);
+      this._controlsVisible = true;
+    } else if (this._controlsVisible) {
+      clearTimeout(this._controlsTimer); // 핫존 이탈 → 짧은 유예 후 숨김(플리커 방지)
+      this._controlsTimer = setTimeout(() => (this._controlsVisible = false), 400);
+    }
   }
 
   _onKey(e) {

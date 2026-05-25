@@ -725,11 +725,23 @@ app.whenReady().then(async () => {
       deckEl._onStageClick({ button: 0, shiftKey: true }); const clickPrevOk = deckEl._index === 0;
       // 클럭 표시
       const clockOk = /^\\d\\d:\\d\\d$/.test(deckEl._clock());
+      // 컨트롤 가시성: 가장자리 hot-zone 진입 시만 출현(중앙 이동은 무반응)
+      const stageEl2 = deckEl.shadowRoot.querySelector('.stage');
+      stageEl2.getBoundingClientRect = () => ({ top: 0, bottom: 800, left: 0, right: 1280, width: 1280, height: 800 });
+      deckEl._controlsVisible = false;
+      deckEl._onMouseMove({ clientY: 400 }); // 중앙 → 안 뜸
+      const hotCenterNo = deckEl._controlsVisible === false;
+      deckEl._onMouseMove({ clientY: 770 }); // 하단 핫존(>720) → 뜸
+      const hotBottomYes = deckEl._controlsVisible === true;
+      deckEl._controlsVisible = false;
+      deckEl._onMouseMove({ clientY: 30 }); // 상단 핫존(<80) → 뜸
+      const hotTopYes = deckEl._controlsVisible === true;
+      const edgeHoverOk = hotCenterNo && hotBottomYes && hotTopYes;
       deckEl._fullscreen = false; deckEl._overview = false; deckEl._helpOpen = false; deckEl._blank = null;
       await deckEl.updateComplete;
       const presentUiOk = endOk && homeOk && numJumpOk && spaceNextOk && backPrevOk && blackOk
         && blankAnyKeyClears && whiteOk && whiteToggleOff && overviewOk && ovClickOk && helpOk
-        && helpEscOk && progressOk && clickNextOk && clickPrevOk && clockOk;
+        && helpEscOk && progressOk && clickNextOk && clickPrevOk && clockOk && edgeHoverOk;
 
       // Marp presenter 모드: 노트 추출 + 현재/다음 패널 + 타이머 + 종료
       deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n<!-- 첫 슬라이드 노트 -->\\n\\n---\\n\\n# B';
