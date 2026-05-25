@@ -45,6 +45,7 @@ class MdvApp extends LitElement {
     _graphOpen: { state: true },
     _hoverPreview: { state: true },
     _settingsOpen: { state: true },
+    _vaultLoading: { state: true },
   };
 
   static styles = [
@@ -484,6 +485,15 @@ class MdvApp extends LitElement {
     .empty {
       color: var(--muted, #9aa0a6);
       padding: 2rem;
+    }
+    .vault-loading {
+      color: var(--muted, #9aa0a6);
+      padding: 1rem 0.6rem;
+      font-size: 0.85rem;
+      animation: mdv-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes mdv-pulse {
+      50% { opacity: 0.45; }
     }
     /* 사이드바 전문 검색 (flex:0 상단 고정 — sticky 불필요) */
     .search {
@@ -1233,6 +1243,7 @@ class MdvApp extends LitElement {
     this._previewCache = new Map();
     this._settingsOpen = false; // 설정(도구 상태) 패널
     this._settingsData = null;
+    this._vaultLoading = false; // vault 스캔/인덱싱 중 로딩 표시
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1319,12 +1330,15 @@ class MdvApp extends LitElement {
   }
 
   async _autoOpen(root) {
+    this._vaultLoading = true;
     try {
       const res = await window.mdv.openVaultPath(root);
       this._applyVault(res, false);
       this._addRecent(res.root);
     } catch {
       this._removeRecent(root); // 경로 사라짐 → 조용히 목록에서 제거 (시작 시 에러 표시 안 함)
+    } finally {
+      this._vaultLoading = false;
     }
   }
 
@@ -1349,6 +1363,7 @@ class MdvApp extends LitElement {
   async _openVault() {
     this._error = null;
     this._menuOpen = false;
+    this._vaultLoading = true;
     try {
       const res = await window.mdv.openVault();
       if (!res) return;
@@ -1356,6 +1371,8 @@ class MdvApp extends LitElement {
       this._addRecent(res.root);
     } catch (err) {
       this._error = String(err);
+    } finally {
+      this._vaultLoading = false;
     }
   }
 
@@ -1372,6 +1389,7 @@ class MdvApp extends LitElement {
 
   async _openRecent(root) {
     this._error = null;
+    this._vaultLoading = true;
     try {
       const res = await window.mdv.openVaultPath(root);
       this._applyVault(res, false);
@@ -1380,6 +1398,8 @@ class MdvApp extends LitElement {
     } catch (err) {
       this._error = String(err); // 경로 사라짐 등
       this._removeRecent(root);
+    } finally {
+      this._vaultLoading = false;
     }
   }
 
@@ -2320,13 +2340,15 @@ ${lines.map(
               </div>`
             : ''}
           <div class="sidebar-scroll">
-            ${this._tagFilter
-              ? this._renderTagResults()
-              : this._searchQuery.trim()
-                ? this._renderSearchResults()
-                : this._tree.length
-                  ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
-                  : html`<div class="empty">vault 없음</div>`}
+            ${this._vaultLoading
+              ? html`<div class="vault-loading">vault 읽는 중…</div>`
+              : this._tagFilter
+                ? this._renderTagResults()
+                : this._searchQuery.trim()
+                  ? this._renderSearchResults()
+                  : this._tree.length
+                    ? html`<mdv-tree .nodes=${this._tree} .selected=${this._selected}></mdv-tree>`
+                    : html`<div class="empty">vault 없음</div>`}
           </div>
         </aside>
         <div

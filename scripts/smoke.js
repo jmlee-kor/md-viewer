@@ -692,6 +692,14 @@ app.whenReady().then(async () => {
       // 콘텐츠 상단 토글 바: 노트 선택 시 렌더/원본 탭 노출
       const viewBarOk = appEl.shadowRoot.querySelectorAll('.view-bar .tab').length >= 2;
 
+      // vault 열기 로딩 표시
+      appEl._vaultLoading = true;
+      await appEl.updateComplete;
+      const loadingShown = !!appEl.shadowRoot.querySelector('.vault-loading');
+      appEl._vaultLoading = false;
+      await appEl.updateComplete;
+      const vaultLoadingOk = loadingShown && !appEl.shadowRoot.querySelector('.vault-loading');
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -749,6 +757,7 @@ app.whenReady().then(async () => {
         hoverOk,
         breadcrumbAllOk,
         settingsOk,
+        vaultLoadingOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -829,6 +838,7 @@ app.whenReady().then(async () => {
     if (!result.hoverOk) fail('링크 hover 미리보기 실패');
     if (!result.breadcrumbAllOk) fail('breadcrumb/사이드바 구조 실패');
     if (!result.settingsOk) fail('설정 패널(PlantUML 도구 상태) 실패');
+    if (!result.vaultLoadingOk) fail('vault 열기 로딩 표시 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');
