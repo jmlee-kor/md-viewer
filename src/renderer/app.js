@@ -1297,13 +1297,25 @@ class MdvApp extends LitElement {
     window.removeEventListener('keydown', this._onKeydown);
   }
 
-  firstUpdated() {
+  async firstUpdated() {
     // 저장된 테마/폰트 배율 적용 (document 레벨 → Shadow DOM 상속)
     this._applyTheme(getSetting('theme', 'dark'));
     this._applyFontScale(getSetting('fontScale', 1));
     // 시작 시 최근 vault 자동 로딩 (설정 on + 목록 있을 때)
     const last = this._recent[0];
-    if (last && getSetting('autoOpenRecent', true)) this._autoOpen(last);
+    if (last && getSetting('autoOpenRecent', true)) {
+      this._autoOpen(last);
+      return;
+    }
+    // 최근 vault 없으면 번들 sample-vault 자동 열기 (첫 실행 데모)
+    if (!this._tree.length) {
+      try {
+        const sample = await window.mdv.samplePath();
+        if (sample) this._autoOpen(sample);
+      } catch {
+        /* 샘플 없음 — 빈 상태 유지 */
+      }
+    }
   }
 
   _applyTheme(theme) {

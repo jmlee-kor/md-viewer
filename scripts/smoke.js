@@ -32,6 +32,7 @@ ipcMain.handle('vault:openPath', async (_e, root) => {
 });
 ipcMain.handle('note:read', (_e, rel) => vault.readNote(SAMPLE_VAULT, rel));
 ipcMain.handle('vault:search', (_e, q) => linkIndex.searchContent(smokeContents, smokeTitles, q));
+ipcMain.handle('vault:samplePath', () => SAMPLE_VAULT);
 
 // mdv-res 프로토콜 (privileged 등록은 ready 이전)
 resProtocol.registerPrivileged();
@@ -717,6 +718,10 @@ app.whenReady().then(async () => {
       // 콘텐츠 상단 토글 바: 노트 선택 시 렌더/원본 탭 노출
       const viewBarOk = appEl.shadowRoot.querySelectorAll('.view-bar .tab').length >= 2;
 
+      // 번들 sample-vault 경로 API (첫 실행 데모 자동 열기용)
+      const sp = await window.mdv.samplePath();
+      const samplePathOk = !!sp && /sample-vault/.test(sp);
+
       // vault 열기 로딩 표시
       appEl._vaultLoading = true;
       await appEl.updateComplete;
@@ -784,6 +789,7 @@ app.whenReady().then(async () => {
         breadcrumbAllOk,
         settingsOk,
         vaultLoadingOk,
+        samplePathOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -866,6 +872,7 @@ app.whenReady().then(async () => {
     if (!result.breadcrumbAllOk) fail('breadcrumb/사이드바 구조 실패');
     if (!result.settingsOk) fail('설정 패널(PlantUML 도구 상태) 실패');
     if (!result.vaultLoadingOk) fail('vault 열기 로딩 표시 실패');
+    if (!result.samplePathOk) fail('번들 sample-vault 경로 API 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

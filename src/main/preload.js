@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('mdv', {
   readNote: (relPath) => ipcRenderer.invoke('note:read', relPath),
   /** 전문 검색 → [{relPath, title, count, titleHit, snippets}] (랭킹순) */
   searchVault: (query) => ipcRenderer.invoke('vault:search', query),
+  /** 번들 sample-vault 경로 (없으면 null) — 첫 실행 데모 자동 열기 */
+  samplePath: () => ipcRenderer.invoke('vault:samplePath'),
   /** PlantUML 원문 → { ok, svg } | { ok:false, error } */
   renderPlantUML: (src) => ipcRenderer.invoke('plantuml:render', src),
   /** PlantUML 도구(java/jar/graphviz) 해석 상태 → { baseDir, java, jar, dot } */

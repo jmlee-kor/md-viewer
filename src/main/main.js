@@ -147,6 +147,14 @@ ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));
 // --- IPC: PlantUML 도구 상태 (설정 UI 표시용) ---
 ipcMain.handle('plantuml:status', () => plantuml.status());
 
+// --- IPC: 번들 sample-vault 경로 (첫 실행 데모 자동 열기용) ---
+ipcMain.handle('vault:samplePath', () => {
+  const p = app.isPackaged
+    ? path.join(process.resourcesPath, 'sample-vault') // extraResources
+    : path.join(__dirname, '..', '..', 'sample-vault'); // dev: 프로젝트 루트
+  return fs.existsSync(p) ? p : null;
+});
+
 // --- Marp export: 자립형 HTML 빌드 + printToPDF (오프라인, marp-cli 미사용) ---
 function buildMarpExportHtml(html, css) {
   return (

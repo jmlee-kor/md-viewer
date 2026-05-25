@@ -45,6 +45,10 @@
           "**/*",
           "!README.md"
         ]
+      },
+      {
+        "from": "sample-vault",
+        "to": "sample-vault"
       }
     ]
   },
