@@ -144,6 +144,9 @@ ipcMain.handle('vault:search', (_e, query) =>
 // --- IPC: PlantUML 렌더 (java -jar plantuml.jar -pipe) ---
 ipcMain.handle('plantuml:render', async (_e, src) => plantuml.render(src));
 
+// --- IPC: PlantUML 도구 상태 (설정 UI 표시용) ---
+ipcMain.handle('plantuml:status', () => plantuml.status());
+
 // --- Marp export: 자립형 HTML 빌드 + printToPDF (오프라인, marp-cli 미사용) ---
 function buildMarpExportHtml(html, css) {
   return (

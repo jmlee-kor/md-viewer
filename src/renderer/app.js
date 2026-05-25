@@ -44,6 +44,7 @@ class MdvApp extends LitElement {
     _histIdx: { state: true },
     _graphOpen: { state: true },
     _hoverPreview: { state: true },
+    _settingsOpen: { state: true },
   };
 
   static styles = [
@@ -765,6 +766,87 @@ class MdvApp extends LitElement {
       max-width: none;
       font-size: 0.82rem;
     }
+    /* 설정 패널 */
+    .set-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 115;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 12vh;
+    }
+    .set-panel {
+      width: min(680px, 92vw);
+      background: var(--panel, #252729);
+      border: 1px solid var(--border, #3a3d41);
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      padding: 0.4rem 0.9rem 0.9rem;
+    }
+    .set-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--border, #333);
+      margin-bottom: 0.6rem;
+    }
+    .set-head button {
+      background: none;
+      border: 0;
+      color: var(--muted, #9aa0a6);
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .set-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.35rem 0;
+      font-size: 0.85rem;
+    }
+    .set-label {
+      flex: 0 0 7rem;
+      color: var(--muted, #9aa0a6);
+    }
+    .set-badge {
+      flex: 0 0 auto;
+      font-size: 0.72rem;
+      border-radius: 8px;
+      padding: 0 0.5em;
+    }
+    .set-badge.ok { background: rgba(78, 201, 176, 0.2); color: #4ec9b0; }
+    .set-badge.bad { background: rgba(244, 135, 113, 0.2); color: #f48771; }
+    .set-badge.na { background: var(--panel2, #2a2c2f); color: var(--muted, #9aa0a6); }
+    .set-src {
+      flex: 0 0 4rem;
+      font-size: 0.72rem;
+      color: var(--muted, #9aa0a6);
+    }
+    .set-path {
+      flex: 1 1 auto;
+      font-family: var(--mono, monospace);
+      font-size: 0.74rem;
+      color: #c8ccd0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .set-note {
+      font-size: 0.76rem;
+      color: var(--muted, #9aa0a6);
+      margin-top: 0.6rem;
+      line-height: 1.5;
+    }
+    .set-note code {
+      font-family: var(--mono, monospace);
+      background: var(--code-bg, #2d2d2d);
+      padding: 0 0.3em;
+      border-radius: 3px;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -1147,6 +1229,8 @@ class MdvApp extends LitElement {
     this._hoverTimer = null;
     this._hideTimer = null;
     this._previewCache = new Map();
+    this._settingsOpen = false; // 설정(도구 상태) 패널
+    this._settingsData = null;
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1177,6 +1261,9 @@ class MdvApp extends LitElement {
       } else if (e.key === 'Escape' && this._graphOpen) {
         e.preventDefault();
         this._closeGraph();
+      } else if (e.key === 'Escape' && this._settingsOpen) {
+        e.preventDefault();
+        this._closeSettings();
       } else if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         this._goBack();
@@ -1639,6 +1726,58 @@ class MdvApp extends LitElement {
 
   _closeGraph() {
     this._graphOpen = false;
+  }
+
+  // --- 설정 (PlantUML 도구 상태) ---
+  async _openSettings() {
+    this._menuOpen = false;
+    try {
+      this._settingsData = await window.mdv.plantumlStatus();
+    } catch {
+      this._settingsData = null;
+    }
+    this._settingsOpen = true;
+  }
+
+  _closeSettings() {
+    this._settingsOpen = false;
+  }
+
+  _renderSettings() {
+    const s = this._settingsData;
+    const row = (label, item, hint) => {
+      const badge = item.exists === true ? 'ok' : item.exists === false ? 'bad' : 'na';
+      const badgeText = item.exists === true ? '✓ 있음' : item.exists === false ? '✗ 없음' : '—';
+      return html`<div class="set-row">
+        <span class="set-label">${label}</span>
+        <span class="set-badge ${badge}">${badgeText}</span>
+        <span class="set-src">${item.source}</span>
+        <code class="set-path">${item.path || hint || ''}</code>
+      </div>`;
+    };
+    return html`
+      <div class="set-overlay" @click=${this._closeSettings}>
+        <div class="set-panel" @click=${(e) => e.stopPropagation()}>
+          <div class="set-head">
+            <span>설정 — PlantUML 도구 상태</span>
+            <button @click=${this._closeSettings} title="닫기 (Esc)">✕</button>
+          </div>
+          ${s
+            ? html`
+                ${row('Java', s.java)}
+                ${row('plantuml.jar', s.jar)}
+                ${row('Graphviz dot', s.dot, '(없음 — 시퀀스 등 내장 다이어그램만 렌더)')}
+                <div class="set-note">기준 경로: <code>${s.baseDir}</code></div>
+                <div class="set-note">
+                  설치본은 도구가 자동 번들됩니다. 수동 반입/재정의는 환경변수
+                  (MDV_JAVA · MDV_PLANTUML_JAR · MDV_GRAPHVIZ_DOT) 또는 기준 경로의
+                  <code>mdv.config.json</code> (javaPath · plantumlJar · graphvizDot).
+                </div>
+              `
+            : html`<div class="set-note">도구 상태를 불러올 수 없습니다.</div>`}
+        </div>
+      </div>
+    `;
   }
 
   /** 경량 force-directed 레이아웃 (정적 계산, 애니메이션 없음). */
@@ -2214,6 +2353,7 @@ ${lines.map(
       ${this._paletteOpen ? this._renderPalette() : ''}
       ${this._lightboxOpen ? this._renderLightbox() : ''}
       ${this._graphOpen ? this._renderGraph() : ''}
+      ${this._settingsOpen ? this._renderSettings() : ''}
       ${this._hoverPreview
         ? html`<div
             class="hover-preview"
@@ -2426,6 +2566,7 @@ ${lines.map(
             </select>
           </label>
           <button data-graph @click=${this._openGraph} ?disabled=${!this._tree.length}>그래프 뷰</button>
+          <button data-settings @click=${this._openSettings}>설정</button>
           <div class="menu-sep"></div>
           <div class="menu-label">테마 · 글자크기</div>
           <div class="menu-actions" role="group" aria-label="테마">

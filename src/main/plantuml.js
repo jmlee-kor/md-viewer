@@ -50,6 +50,41 @@ function resolveDot(cfg) {
   return null; // PlantUML 내장(시퀀스 등) 또는 PATH dot
 }
 
+/** PlantUML 도구(java/jar/graphviz) 해석 상태 — 설정 UI 표시용.
+ *  @returns {{baseDir, java, jar, dot}} 각 항목 {path, source(env|config|bundled|PATH|none), exists} */
+function status() {
+  const cfg = loadConfig();
+  const winExe = (n) => (IS_WIN ? n + '.exe' : n);
+  const exist = (p) => (p ? fs.existsSync(p) : null);
+  function resolveWith(envVar, cfgKey, bundledRel, fallback) {
+    if (process.env[envVar]) return { path: process.env[envVar], source: 'env' };
+    if (cfg[cfgKey]) return { path: cfg[cfgKey], source: 'config' };
+    if (bundledRel) {
+      const b = path.join(baseDir, ...bundledRel);
+      if (fs.existsSync(b)) return { path: b, source: 'bundled' };
+    }
+    return fallback;
+  }
+  const java = resolveWith('MDV_JAVA', 'javaPath', ['tools', 'jre', 'bin', winExe('java')], {
+    path: 'java',
+    source: 'PATH',
+  });
+  const jar = resolveWith('MDV_PLANTUML_JAR', 'plantumlJar', null, {
+    path: path.join(baseDir, 'tools', 'plantuml.jar'),
+    source: 'bundled',
+  });
+  const dot = resolveWith('MDV_GRAPHVIZ_DOT', 'graphvizDot', ['tools', 'graphviz', 'bin', winExe('dot')], {
+    path: null,
+    source: 'none',
+  });
+  return {
+    baseDir,
+    java: { ...java, exists: java.source === 'PATH' ? null : exist(java.path) },
+    jar: { ...jar, exists: exist(jar.path) },
+    dot: { ...dot, exists: exist(dot.path) },
+  };
+}
+
 /** @returns {Promise<{ok:true, svg:string} | {ok:false, error:string}>} */
 function render(src) {
   const cfg = loadConfig();
@@ -111,4 +146,4 @@ function render(src) {
   });
 }
 
-module.exports = { render, setBaseDir };
+module.exports = { render, setBaseDir, status };

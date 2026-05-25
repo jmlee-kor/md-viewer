@@ -15,6 +15,7 @@ const SAMPLE_VAULT = path.join(__dirname, '..', 'sample-vault');
 
 // 실제 main.js 와 동일하게 PlantUML IPC 핸들러 등록 (전체 경로 검증용)
 ipcMain.handle('plantuml:render', (_e, src) => plantuml.render(src));
+ipcMain.handle('plantuml:status', () => plantuml.status());
 
 // vault IPC (전문 검색/노트 읽기 전체 경로 검증용). main.js 와 동일 모듈 사용.
 let smokeContents = {};
@@ -503,6 +504,15 @@ app.whenReady().then(async () => {
         && !!appEl.shadowRoot.querySelector('.sidebar-scroll');
       const breadcrumbAllOk = breadcrumbOk && sidebarOk;
 
+      // 설정 패널: PlantUML 도구 상태(java/jar/dot 3행) 표시 + 닫기
+      await appEl._openSettings();
+      await appEl.updateComplete;
+      const setRows = appEl.shadowRoot.querySelectorAll('.set-panel .set-row').length;
+      const setShown = !!appEl.shadowRoot.querySelector('.set-panel') && setRows === 3 && !!appEl._settingsData;
+      appEl._closeSettings();
+      await appEl.updateComplete;
+      const settingsOk = setShown && !appEl.shadowRoot.querySelector('.set-overlay');
+
       // Ctrl+P 빠른 전환기: 단축키 오픈 + 퍼지 필터 + Enter 선택
       appEl._tree = [
         { name: 'Welcome.md', type: 'file', relPath: 'Welcome.md' },
@@ -720,6 +730,7 @@ app.whenReady().then(async () => {
         graphOk,
         hoverOk,
         breadcrumbAllOk,
+        settingsOk,
         paletteOk,
         embedOk,
         titlebarOk,
@@ -799,6 +810,7 @@ app.whenReady().then(async () => {
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
     if (!result.hoverOk) fail('링크 hover 미리보기 실패');
     if (!result.breadcrumbAllOk) fail('breadcrumb/사이드바 구조 실패');
+    if (!result.settingsOk) fail('설정 패널(PlantUML 도구 상태) 실패');
     if (!result.paletteOk) fail('Ctrl+P 빠른 전환기 실패 (오픈/퍼지/Enter)');
     if (!result.embedOk) fail('위키 임베드 실패 (이미지/transclusion)');
     if (!result.titlebarOk) fail('커스텀 타이틀바 실패');

@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('mdv', {
   searchVault: (query) => ipcRenderer.invoke('vault:search', query),
   /** PlantUML 원문 → { ok, svg } | { ok:false, error } */
   renderPlantUML: (src) => ipcRenderer.invoke('plantuml:render', src),
+  /** PlantUML 도구(java/jar/graphviz) 해석 상태 → { baseDir, java, jar, dot } */
+  plantumlStatus: () => ipcRenderer.invoke('plantuml:status'),
   /** Marp export: format(pdf|html) + {html, css, title} → { ok, path } | { canceled } */
   exportMarp: (payload) => ipcRenderer.invoke('marp:export', payload),
   /** 다이어그램 export: { format(png|svg), data(Uint8Array|string), name } → { ok, path } | { canceled } */
