@@ -41,5 +41,32 @@ contextBridge.exposeInMainWorld('mdv', {
     ipcRenderer.on('vault:changed', listener);
     return () => ipcRenderer.removeListener('vault:changed', listener);
   },
-  // 후속: renderPlantUML(src) 등 추가 예정
+
+  // --- 발표 이중 창 (발표자 메인 창 ↔ 청중 창) — 메인 프로세스 IPC 릴레이 ---
+  /** 발표 시작: 청중 창 생성 + marp src 전달 */
+  startPresent: (src) => ipcRenderer.invoke('present:open', src),
+  /** 발표자 네비/블랭크 변경 → 청중 창 동기화 { index, blank } */
+  updatePresent: (state) => ipcRenderer.send('present:state', state),
+  /** 발표 종료(양쪽 정리) */
+  endPresent: () => ipcRenderer.send('present:close'),
+  /** (청중) 렌더러 준비됨 → 메인이 src+현재 state 푸시 */
+  presentReady: () => ipcRenderer.send('present:ready'),
+  /** (청중) marp src 수신. 해제 함수 반환 */
+  onPresentSrc: (cb) => {
+    const l = (_e, src) => cb(src);
+    ipcRenderer.on('present:src', l);
+    return () => ipcRenderer.removeListener('present:src', l);
+  },
+  /** (청중) state {index, blank} 수신. 해제 함수 반환 */
+  onPresentState: (cb) => {
+    const l = (_e, s) => cb(s);
+    ipcRenderer.on('present:state', l);
+    return () => ipcRenderer.removeListener('present:state', l);
+  },
+  /** (발표자) 청중 창이 닫혀 발표가 끝남 → 단일 창 복귀. 해제 함수 반환 */
+  onPresentEnded: (cb) => {
+    const l = () => cb();
+    ipcRenderer.on('present:ended', l);
+    return () => ipcRenderer.removeListener('present:ended', l);
+  },
 });

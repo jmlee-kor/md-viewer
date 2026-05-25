@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- index.html 과 동일 CSP (로컬 전용, 오프라인). 청중 창은 deck 만 렌더. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: mdv-res:; font-src 'self' data:; connect-src 'self' mdv-res:; worker-src blob:"
+    />
+    <title>md-viewer — 발표(청중)</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #000;
+        overflow: hidden;
+      }
+      mdv-deck {
+        display: block;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="audience.js"></script>
+  </body>
+</html>

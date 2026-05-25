@@ -19,6 +19,8 @@ class MdvDeck extends LitElement {
     _blank: { state: true }, // 'black' | 'white' | null
     _helpOpen: { state: true },
     _overview: { state: true },
+    audience: { type: Boolean }, // 청중 창 모드: 크롬 숨김 + 항상 contain-fit + 키 무시(ESC만)
+    _presenting: { state: true }, // (발표자) 청중 창 발표 진행 중
   };
 
   static styles = [
@@ -87,6 +89,19 @@ class MdvDeck extends LitElement {
     .error {
       color: #f44747;
       padding: 1.5rem;
+    }
+    /* 청중 창(audience): 크롬 숨기고 슬라이드만 검정 배경에 꽉 채운다 */
+    :host([audience]) {
+      background: #000;
+    }
+    :host([audience]) .navbar {
+      display: none;
+    }
+    /* 발표 진행 중 표시 버튼(navbar/발표자 바 공통) */
+    .navbar button.on,
+    .pr-bar button.on {
+      background: var(--accent, #569cd6);
+      color: #fff;
     }
     /* 전체화면 재생 — vw/vh 로 명시 치수를 줘야 grid 1fr 가 화면을 채운다.
        (:host{height:100%} 는 fullscreen 시 컨테이닝블록이 불확정→auto 로 풀려
@@ -403,6 +418,8 @@ class MdvDeck extends LitElement {
     this._helpOpen = false; // 단축키 도움말
     this._overview = false; // 슬라이드 오버뷰 그리드
     this._numBuf = ''; // 번호 입력 버퍼(Enter 로 점프)
+    this.audience = false;
+    this._presenting = false;
     this._keyHandler = (e) => this._onKey(e);
   }
 
@@ -430,6 +447,10 @@ class MdvDeck extends LitElement {
       setTimeout(refit, 120); // backup (전체화면 전환 애니메이션 등)
     };
     document.addEventListener('fullscreenchange', this._fsHandler);
+    // (발표자) 청중 창이 닫히면 발표 종료 → 단일 창 복귀
+    if (!this.audience && window.mdv?.onPresentEnded) {
+      this._endedUnsub = window.mdv.onPresentEnded(() => { this._presenting = false; });
+    }
   }
 
   /** stage 가 실제로 리사이즈되는 정확한 순간(전체화면 전환 레이아웃 안정·창 크기 변경·
@@ -456,6 +477,7 @@ class MdvDeck extends LitElement {
     window.removeEventListener('resize', this._resizeHandler);
     document.removeEventListener('fullscreenchange', this._fsHandler);
     this._stageRO?.disconnect();
+    this._endedUnsub?.();
     clearTimeout(this._controlsTimer);
     clearInterval(this._timerId);
   }
@@ -464,6 +486,10 @@ class MdvDeck extends LitElement {
     if (changed.has('src')) this._build();
     if (changed.has('_html') && this._html) this._applySlides();
     if (!this._presenter) this._observeStage(); // 슬라이드뷰 .stage(재)생성 시 관찰 갱신
+    // 발표 중 블랙/화이트 스크린 변경 → 청중 창 동기화 (audience 는 _presenting=false 라 안 돌아옴)
+    if (changed.has('_blank') && this._presenting && !this.audience) {
+      window.mdv?.updatePresent?.({ blank: this._blank });
+    }
     // 발표자 뷰: 진입/슬라이드 이동 시 현재·다음 패널 갱신
     if (this._presenter && (changed.has('_presenter') || changed.has('_index') || changed.has('_html'))) {
       this.updateComplete.then(() => this._updatePresenter());
@@ -505,6 +531,8 @@ class MdvDeck extends LitElement {
       s.style.display = idx === this._index ? 'block' : 'none';
     });
     this._fit();
+    // 발표 중이면 청중 창에 인덱스 동기화 (audience deck 은 _presenting=false 라 되돌아오지 않음)
+    if (this._presenting && !this.audience) window.mdv?.updatePresent?.({ index: this._index });
   }
 
   /** 현재 슬라이드를 스테이지에 맞게 zoom 스케일. 일반=너비맞춤(축소만),
@@ -517,8 +545,8 @@ class MdvDeck extends LitElement {
     const w = cur.offsetWidth || 1280;
     const h = cur.offsetHeight || 720;
     let scale;
-    if (this._fullscreen) {
-      // 화면 꽉참: 제한 축 기준 최대 확대(패딩/레터박스 최소화)
+    if (this._fullscreen || this.audience) {
+      // 화면 꽉참(전체화면 재생 / 청중 창): 제한 축 기준 최대 확대(패딩/레터박스 최소화)
       scale = Math.min(stage.clientWidth / w, stage.clientHeight / h);
     } else {
       scale = Math.min(1, (stage.clientWidth - 32) / w);
@@ -554,6 +582,8 @@ class MdvDeck extends LitElement {
   }
 
   _onKey(e) {
+    // 청중 창 deck 은 자체 네비 금지(발표자만 제어) — ESC 종료는 audience.js 가 처리.
+    if (this.audience) return;
     // 입력 포커스(검색창 등) 중에는 무시 — composedPath 로 Shadow DOM 내부 실제 타겟 확인
     const real = e.composedPath()[0];
     if (real && (/^(INPUT|TEXTAREA|SELECT)$/.test(real.tagName) || real.isContentEditable)) return;
@@ -565,6 +595,7 @@ class MdvDeck extends LitElement {
     else if (k === 'Home') { e.preventDefault(); this._show(0); }
     else if (k === 'End') { e.preventDefault(); this._show(this._count - 1); }
     else if (k === 'f' || k === 'F' || k === 'F11') { e.preventDefault(); this._toggleFullscreen(); }
+    else if ((k === 'p' || k === 'P') && e.shiftKey) { e.preventDefault(); this._startPresentation(); } // Shift+P=이중 창 발표
     else if (k === 'p' || k === 'P') { e.preventDefault(); this._togglePresenter(); } // 전체화면 중에도 발표자뷰
     else if (k === 'g' || k === 'G') { e.preventDefault(); this._overview = !this._overview; }
     else if (k === 'b' || k === 'B') { e.preventDefault(); this._blank = this._blank === 'black' ? null : 'black'; }
@@ -590,6 +621,22 @@ class MdvDeck extends LitElement {
   _togglePresenter() {
     if (this._presenter) this._exitPresenter();
     else this._enterPresenter();
+  }
+
+  // --- 이중 창 발표 (청중 창 = 별도 BrowserWindow, 발표자 창 = 이 창의 발표자 뷰) ---
+  /** 발표 시작: 청중 창 띄우고(현재 src 전달) 이 창은 발표자 뷰로 전환. */
+  _startPresentation() {
+    if (!window.mdv?.startPresent || this.audience) return;
+    window.mdv.startPresent(this.src);
+    this._presenting = true;
+    if (!this._presenter) this._enterPresenter(); // 발표자 뷰(현재+다음+노트+타이머)
+    window.mdv.updatePresent?.({ index: this._index, blank: this._blank });
+  }
+
+  /** 발표 종료: 청중 창 닫기(메인이 present:ended 로 _presenting 해제). */
+  _stopPresentation() {
+    window.mdv?.endPresent?.();
+    this._presenting = false;
   }
 
   // --- 발표자(presenter) 모드 ---
@@ -693,6 +740,14 @@ class MdvDeck extends LitElement {
         <span class="nav-sep"></span>
         <button data-fs @click=${this._toggleFullscreen} title="전체화면 재생 (F)">⛶</button>
         <button data-presenter @click=${this._enterPresenter} title="발표자 보기">👤</button>
+        <button
+          data-present
+          class=${this._presenting ? 'on' : ''}
+          @click=${this._presenting ? this._stopPresentation : this._startPresentation}
+          title=${this._presenting ? '발표 종료' : '발표 시작 — 청중 창 (Shift+P)'}
+        >
+          ${this._presenting ? '⏹' : '🖥'}
+        </button>
         <span class="nav-sep"></span>
         <button class="exp" data-export @click=${() => this._export('pdf')} title="PDF로 내보내기">PDF</button>
         <button class="exp" data-export @click=${() => this._export('png')} title="슬라이드별 PNG">PNG</button>
@@ -791,6 +846,13 @@ class MdvDeck extends LitElement {
           <span class="counter">${this._count ? this._index + 1 : 0} / ${this._count}</span>
           <button @click=${() => this._show(this._index + 1)} ?disabled=${last}>▶</button>
           <span class="nav-sep"></span>
+          <button
+            class=${this._presenting ? 'on' : ''}
+            @click=${this._presenting ? this._stopPresentation : this._startPresentation}
+            title=${this._presenting ? '발표 종료(청중 창 닫기)' : '발표 시작 — 청중 창 (Shift+P)'}
+          >
+            ${this._presenting ? '⏹ 발표 종료' : '🖥 발표 시작'}
+          </button>
           <button @click=${this._toggleFullscreen} title="전체화면 (F)">⛶</button>
           <button @click=${this._exitPresenter} title="발표자 보기 종료">✕</button>
         </div>

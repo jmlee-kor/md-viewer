@@ -33,6 +33,8 @@ ipcMain.handle('vault:openPath', async (_e, root) => {
 ipcMain.handle('note:read', (_e, rel) => vault.readNote(SAMPLE_VAULT, rel));
 ipcMain.handle('vault:search', (_e, q) => linkIndex.searchContent(smokeContents, smokeTitles, q));
 ipcMain.handle('vault:samplePath', () => SAMPLE_VAULT);
+// 발표 이중 창: 실제 청중 창은 안 띄우고 invoke 만 성공 처리(렌더러 콘솔 에러 방지). send 채널은 핸들러 불요.
+ipcMain.handle('present:open', () => true);
 
 // mdv-res 프로토콜 (privileged 등록은 ready 이전)
 resProtocol.registerPrivileged();
@@ -837,6 +839,47 @@ app.whenReady().then(async () => {
       const presenterOk = prEl && prCur && prNext && prNotesOk && prTimerFmt && prRunning && prExited
         && prHasFsBtn && pKeyOpens && pKeyCloses;
 
+      // 발표 이중 창(1단계): preload API + 청중 deck(크롬 숨김/contain-fit/키무시) + 발표 시작 트리거
+      const presentApiOk = ['startPresent', 'updatePresent', 'endPresent', 'presentReady',
+        'onPresentSrc', 'onPresentState', 'onPresentEnded'].every((k) => typeof window.mdv[k] === 'function');
+      // 청중 deck: audience 속성 → navbar 숨김 + contain-fit + 자체 키 네비 무시
+      const audDeck = document.createElement('mdv-deck');
+      audDeck.setAttribute('audience', '');
+      audDeck.src = '---\\nmarp: true\\n---\\n# A\\n\\n---\\n\\n# B';
+      document.body.appendChild(audDeck);
+      await audDeck.updateComplete;
+      await new Promise((r) => setTimeout(r, 80));
+      await audDeck.updateComplete;
+      const audNavbar = audDeck.shadowRoot.querySelector('.navbar');
+      const audNavbarHidden = !audNavbar || getComputedStyle(audNavbar).display === 'none';
+      const audSec = audDeck.shadowRoot.querySelector('.stage section');
+      let audFitOk = false;
+      if (audSec) {
+        audSec.style.zoom = '1';
+        const sw = audSec.offsetWidth, sh = audSec.offsetHeight;
+        const stg = audDeck.shadowRoot.querySelector('.stage');
+        audDeck._fit(); // audience 라 contain-fit
+        const z = parseFloat(audSec.style.zoom);
+        const expected = Math.min(stg.clientWidth / sw, stg.clientHeight / sh);
+        audFitOk = sw > 0 && Math.abs(z - expected) < 0.02;
+      }
+      const aidx = audDeck._index;
+      audDeck._onKey({ key: 'ArrowRight', composedPath: () => [document.body], preventDefault() {} });
+      const audKeyIgnored = audDeck._index === aidx; // 청중 deck 은 자체 키 네비 안 함
+      audDeck._show(1); // present:state 처럼 외부 인덱스 반영은 동작
+      const audShowOk = audDeck._index === 1;
+      audDeck.remove();
+      // 발표 시작 트리거: 버튼 존재 + _startPresentation 이 _presenting=true + 발표자 뷰 진입
+      // (window.mdv 는 contextBridge 라 함수 교체 불가 → 실제 present:open invoke, 메인 스텁이 성공 처리)
+      const presentBtn = !!deckEl.shadowRoot.querySelector('[data-present]');
+      deckEl._presenting = false;
+      deckEl._startPresentation();
+      const triggerOk = presentBtn && deckEl._presenting === true && deckEl._presenter === true;
+      deckEl._presenting = false;
+      deckEl._exitPresenter();
+      await deckEl.updateComplete;
+      const presentDualOk = presentApiOk && audNavbarHidden && audFitOk && audKeyIgnored && audShowOk && triggerOk;
+
       // 다이어그램 zoom/pan 라이트박스: 클릭 오픈 + 휠 줌 + export API + 닫기
       const dWrap = document.createElement('div');
       dWrap.className = 'mdv-diagram';
@@ -985,6 +1028,7 @@ app.whenReady().then(async () => {
         marpFsOk,
         presentUiOk,
         presenterOk,
+        presentDualOk,
         lightboxOk,
         reHydrateOk,
         viewBarOk,
@@ -1073,6 +1117,7 @@ app.whenReady().then(async () => {
     if (!result.marpFsOk) fail('Marp 전체화면 재생 실패 (재생버튼/키가드/fs컨트롤)');
     if (!result.presentUiOk) fail('전체화면 발표 UI 실패 (점프키/블랙·화이트/오버뷰/도움말/진행바/클릭내비)');
     if (!result.presenterOk) fail('Marp presenter 모드 실패 (패널/노트/타이머/종료)');
+    if (!result.presentDualOk) fail('발표 이중 창 1단계 실패 (preload API/청중 deck/시작 트리거)');
     if (!result.lightboxOk) fail('다이어그램 라이트박스 실패 (오픈/줌/export API/닫기)');
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');

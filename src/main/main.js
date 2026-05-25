@@ -3,7 +3,7 @@
 // Electron main process.
 // 책임: 윈도우 + 보안 기본값 + vault IPC + 링크 인덱스 + 파일 감시(fs.watch, 의존성 0).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const vault = require('./vault');
@@ -38,6 +38,9 @@ let currentTitles = {};
 let indexCache = new Map();
 /** @type {fs.FSWatcher | null} */
 let watcher = null;
+/** 발표 청중 창 + 동기화 상태 (발표자 메인 창이 src/index/blank 를 릴레이) */
+let audienceWindow = null;
+let presentState = { src: '', index: 0, blank: null };
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -59,6 +62,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;
+    closeAudience(); // 발표자 창 닫히면 청중 창도 정리
   });
 
   // 최대화 상태를 렌더러에 통지 (타이틀바 아이콘 토글용)
@@ -333,6 +337,62 @@ ipcMain.handle('app:action', (e, name) => {
     case 'quit': app.quit(); break;
   }
 });
+
+// --- 발표 이중 창: 청중 창 생성 + 발표자↔청중 동기화 릴레이 ---
+function closeAudience() {
+  if (audienceWindow && !audienceWindow.isDestroyed()) audienceWindow.close();
+}
+
+ipcMain.handle('present:open', (_e, src) => {
+  presentState = { src: src || '', index: 0, blank: null };
+  if (audienceWindow && !audienceWindow.isDestroyed()) {
+    // 이미 발표 중이면 src 만 갱신하고 청중 창 포커스
+    audienceWindow.webContents.send('present:src', presentState.src);
+    audienceWindow.focus();
+    return true;
+  }
+  // 보조 모니터가 있으면 거기 fullscreen, 없으면 기본 디스플레이 fullscreen(단일 폴백)
+  const primary = screen.getPrimaryDisplay();
+  const target = screen.getAllDisplays().find((d) => d.id !== primary.id) || primary;
+  audienceWindow = new BrowserWindow({
+    x: target.bounds.x,
+    y: target.bounds.y,
+    fullscreen: true,
+    backgroundColor: '#000',
+    frame: false,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+  audienceWindow.loadFile(path.join(__dirname, '..', 'renderer', 'audience.html'));
+  audienceWindow.once('ready-to-show', () => audienceWindow?.show());
+  audienceWindow.on('closed', () => {
+    audienceWindow = null;
+    mainWindow?.webContents.send('present:ended'); // 발표자 단일 창 복귀
+  });
+  return true;
+});
+
+// (청중) 준비 완료 → 현재 src + state 푸시
+ipcMain.on('present:ready', () => {
+  if (!audienceWindow || audienceWindow.isDestroyed()) return;
+  audienceWindow.webContents.send('present:src', presentState.src);
+  audienceWindow.webContents.send('present:state', { index: presentState.index, blank: presentState.blank });
+});
+
+// (발표자) 네비/블랭크 변경 → 청중 창 릴레이
+ipcMain.on('present:state', (_e, state) => {
+  presentState = { ...presentState, ...(state || {}) };
+  if (audienceWindow && !audienceWindow.isDestroyed()) {
+    audienceWindow.webContents.send('present:state', { index: presentState.index, blank: presentState.blank });
+  }
+});
+
+ipcMain.on('present:close', closeAudience);
 
 app.whenReady().then(() => {
   resProtocol.handle(() => currentVaultRoot);
