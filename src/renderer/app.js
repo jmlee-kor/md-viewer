@@ -1350,11 +1350,37 @@ class MdvApp extends LitElement {
       const res = await window.mdv.openVaultPath(root);
       this._applyVault(res, false);
       this._addRecent(res.root);
+      this._restoreLastNote(res.root); // 재시작 시 마지막 본 노트+스크롤 복원
     } catch {
       this._removeRecent(root); // 경로 사라짐 → 조용히 목록에서 제거 (시작 시 에러 표시 안 함)
     } finally {
       this._vaultLoading = false;
     }
+  }
+
+  /** 자동열기 vault 에서 마지막 본 노트를 복원(존재할 때만). 스크롤 위치도 함께. */
+  _restoreLastNote(root) {
+    const rec = (getSetting('lastNotes', {}) || {})[root];
+    // 인덱스 titles 는 모든 .md relPath 를 키로 가짐 → 존재 검증(삭제/경로변경 시 조용히 폴백)
+    if (!rec || !rec.relPath || !this._index?.titles || !(rec.relPath in this._index.titles)) return;
+    this._onSelect(rec.relPath); // 동기부에서 _pendingScroll 설정 후
+    this._pendingScroll = typeof rec.scroll === 'number' ? rec.scroll : 0; // 저장 위치로 덮어씀
+  }
+
+  /** 마지막 본 노트+스크롤을 vault root 별로 영속(재시작 복원용). */
+  _saveLastNote(relPath, scroll) {
+    if (!this._root || !relPath) return;
+    const m = getSetting('lastNotes', {}) || {};
+    m[this._root] = { relPath, scroll: scroll || 0 };
+    setSetting('lastNotes', m);
+  }
+
+  /** 콘텐츠 스크롤 → 현재 노트의 마지막 위치 영속(디바운스). */
+  _onViewScroll(e) {
+    if (!this._selected || !this._root) return;
+    const top = e.target.scrollTop;
+    clearTimeout(this._scrollSaveTimer);
+    this._scrollSaveTimer = setTimeout(() => this._saveLastNote(this._selected, top), 300);
   }
 
   _onAutoOpenToggle(e) {
@@ -1706,6 +1732,7 @@ class MdvApp extends LitElement {
     this._searchTerms = searchTerms || []; // 트리/위키링크/백링크 경로는 하이라이트 없음
     this._pendingHeading = heading || null; // [[note#heading]] → 렌더 후 스크롤
     if (!live) this._rawView = false; // 새 노트는 렌더 뷰 기본 (라이브 갱신은 현재 뷰 모드 보존)
+    if (!live) this._saveLastNote(relPath, this._pendingScroll || 0); // 재시작 복원용 영속(스크롤은 listener 갱신)
     try {
       const src = await window.mdv.readNote(relPath);
       this._src = src;
@@ -2400,7 +2427,7 @@ ${lines.map(
         <div class="content">
           ${this._selected ? this._renderBreadcrumb() : ''}
           ${this._selected ? this._renderViewBar() : ''}
-          <div class="view-scroll">
+          <div class="view-scroll" @scroll=${this._onViewScroll}>
             ${this._error
               ? html`<div class="error">${this._error}</div>`
               : this._selected && this._rawView

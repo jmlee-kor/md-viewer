@@ -533,6 +533,29 @@ app.whenReady().then(async () => {
       appEl._rawView = false; await appEl.updateComplete;
       const viewScrollSyncOk = toggleRatioOk && toggleRestoreOk;
 
+      // 재시작 시 마지막 노트+스크롤 복원 (vault root 별 settings 영속)
+      const savedIndex = appEl._index;
+      appEl._root = 'VROOT';
+      appEl._selected = 'Welcome.md';
+      appEl._saveLastNote('Welcome.md', 250);
+      const lsRaw = JSON.parse(localStorage.getItem('mdv-settings') || '{}');
+      const rec = (lsRaw.lastNotes || {})['VROOT'];
+      const persistOk = !!rec && rec.relPath === 'Welcome.md' && rec.scroll === 250;
+      // 복원: _index.titles 에 있는 노트만, _pendingScroll 을 저장값으로
+      appEl._marpSrc = null; appEl._searchTerms = [];
+      appEl._index = { titles: { 'Welcome.md': 'Welcome' }, resolve: {}, backlinks: {} };
+      appEl._selected = null;
+      appEl._restoreLastNote('VROOT');
+      const restoreOk = appEl._selected === 'Welcome.md' && appEl._pendingScroll === 250;
+      // 미존재(삭제/경로변경) 노트는 조용히 폴백 — 복원 안 함
+      appEl._index = { titles: { 'Other.md': 'Other' }, resolve: {}, backlinks: {} };
+      appEl._selected = null;
+      appEl._restoreLastNote('VROOT');
+      const restoreFallbackOk = appEl._selected === null;
+      const lastNoteOk = persistOk && restoreOk && restoreFallbackOk;
+      appEl._index = savedIndex; // 후속 테스트 위해 원복
+      await appEl.updateComplete;
+
       // 뒤로/앞으로 히스토리 (_selected 는 _onSelect 동기부에서 설정 → await 불필요)
       appEl._history = [];
       appEl._histIdx = -1;
@@ -927,6 +950,7 @@ app.whenReady().then(async () => {
         scrollMemOk,
         liveUpdateScrollOk,
         viewScrollSyncOk,
+        lastNoteOk,
         historyOk,
         graphOk,
         hoverOk,
@@ -1014,6 +1038,7 @@ app.whenReady().then(async () => {
     if (!result.scrollMemOk) fail('노트 스크롤 위치 기억 실패');
     if (!result.liveUpdateScrollOk) fail('라이브 갱신 스크롤 위치 유지 실패 (캡처/복원/뷰모드 보존)');
     if (!result.viewScrollSyncOk) fail('원본↔렌더 전환 스크롤 비율 보존 실패');
+    if (!result.lastNoteOk) fail('재시작 마지막 노트+스크롤 복원 실패 (영속/복원/폴백)');
     if (!result.historyOk) fail('뒤로/앞으로 히스토리 실패');
     if (!result.graphOk) fail('그래프 뷰 실패 (노드/엣지 렌더)');
     if (!result.hoverOk) fail('링크 hover 미리보기 실패');
