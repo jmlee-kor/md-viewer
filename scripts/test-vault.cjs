@@ -26,7 +26,7 @@ const ROOT = path.join(__dirname, '..', 'sample-vault');
 
   // 노트 읽기
   const content = await vault.readNote(ROOT, 'Welcome.md');
-  assert.ok(content.includes('환영합니다'), 'Welcome 본문 읽힘');
+  assert.ok(content.includes('md-viewer 데모 vault'), 'Welcome 본문 읽힘');
 
   // path traversal 차단
   await assert.rejects(

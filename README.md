@@ -1,20 +1,32 @@
 # md-viewer
 
-사내 폐쇄망(외부 인터넷 차단) 환경에서 동작하는 Obsidian형 Markdown 뷰어.
+> **폐쇄망에서 `git pull` 하나로 끝나는 Obsidian형 마크다운 뷰어.**
+> 다이어그램 4종 · Marp 발표 · 그래프 뷰 · 전문 검색까지, 인터넷 없이 그대로.
+
+사내 폐쇄망(외부 인터넷 차단) 환경을 위한 **자체완결** Markdown 뷰어입니다.
+빌드만 인터넷 PC에서 하고, 폐쇄망에서는 받아서 실행만 합니다.
+
+## 왜 md-viewer?
+
+- **런타임 외부 의존 0** — 모든 라이브러리가 `vendor/` 에 포함. CDN·네트워크 불필요.
+- **다이어그램 4종 오프라인** — Mermaid · draw.io · D2(WASM) · PlantUML(번들 JRE).
+- **Marp 발표** — 전체화면 재생 · 발표자 뷰 · **청중 이중 창** · PDF/PNG/SVG/HTML export.
+- **Obsidian 호환** — 위키링크 `[[…]]` · 백링크 · 그래프 뷰 · 임베드 · 태그.
+- **전문 검색** — vault 본문 인덱스 + 하이라이트 + 매치 네비게이션.
 
 ## 스크린샷
 
-| 렌더링 (콜아웃·수식·코드) | 다이어그램 (Mermaid·draw.io·D2·PlantUML) |
+| 다이어그램 4종 (오프라인) | 그래프 뷰 (노트 링크 시각화) |
 |---|---|
-| ![렌더링](docs/screenshots/rendering.png) | ![다이어그램](docs/screenshots/diagrams.png) |
+| ![다이어그램](docs/screenshots/diagrams.png) | ![그래프](docs/screenshots/graph.png) |
 
-| 전문 검색 + 하이라이트 | 그래프 뷰 |
+| Marp 슬라이드 (발표 · Export) | 렌더링 (콜아웃 · 수식 · 코드) |
 |---|---|
-| ![검색](docs/screenshots/search.png) | ![그래프](docs/screenshots/graph.png) |
+| ![Marp](docs/screenshots/marp.png) | ![렌더링](docs/screenshots/rendering.png) |
 
-| Marp 슬라이드 |
+| 전문 검색 + 하이라이트 |
 |---|
-| ![Marp](docs/screenshots/marp.png) |
+| ![검색](docs/screenshots/search.png) |
 
 > 스크린샷은 `npx electron scripts/capture-screenshots.js` 로 sample-vault 기준 재생성.
 
