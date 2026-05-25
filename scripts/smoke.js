@@ -730,10 +730,22 @@ app.whenReady().then(async () => {
         const expected = Math.min(st.clientWidth / sw, st.clientHeight / sh);
         fsFillOk = sw > 0 && Math.abs(z - expected) < 0.02; // min(1) 캡/패딩 없이 stage 꽉
       }
+      // [버그 재오픈] 실기기 꽉참: :host(:fullscreen) 가 100vw/100vh 명시해야 grid 1fr 가
+      // 화면을 채운다(미명시 시 stage 가 슬라이드 자연높이 720 으로만 잡혀 _fit scale=1→작게 남음).
+      // 헤드리스 offscreen 은 실제 :fullscreen 진입 불가 → 스타일시트 규칙으로 회귀 잠금.
+      let fsHostFillOk = false;
+      try {
+        let cssText = '';
+        for (const s of (deckEl.shadowRoot.adoptedStyleSheets || [])) {
+          for (const rule of s.cssRules) cssText += rule.cssText + '\\n';
+        }
+        const blk = cssText.match(/:host\\(:fullscreen\\)\\s*\\{[^}]*\\}/);
+        fsHostFillOk = !!blk && /height:\\s*100vh/.test(blk[0]) && /width:\\s*100vw/.test(blk[0]);
+      } catch (e) { fsHostFillOk = false; }
       deckEl._fullscreen = false;
       deckEl._controlsVisible = false;
       await deckEl.updateComplete;
-      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk && fsFillOk;
+      const marpFsOk = fsBtn && keyGuardOk && fsControlsOk && fsFillOk && fsHostFillOk;
 
       // 전체화면 발표 UI 보강: 점프키 / 블랙·화이트 / 오버뷰 / 도움말 / 진행바·번호 / 클릭내비
       deckEl.src = '---\\nmarp: true\\n---\\n# A\\n\\n---\\n\\n# B\\n\\n---\\n\\n# C';

@@ -88,9 +88,13 @@ class MdvDeck extends LitElement {
       color: #f44747;
       padding: 1.5rem;
     }
-    /* 전체화면 재생 */
+    /* 전체화면 재생 — vw/vh 로 명시 치수를 줘야 grid 1fr 가 화면을 채운다.
+       (:host{height:100%} 는 fullscreen 시 컨테이닝블록이 불확정→auto 로 풀려
+        stage 가 슬라이드 자연높이(720)로만 잡혀 _fit 이 scale=1 로 작게 남던 버그) */
     :host(:fullscreen) {
       background: #000;
+      width: 100vw;
+      height: 100vh;
     }
     :host(:fullscreen) .navbar {
       display: none;
