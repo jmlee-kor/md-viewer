@@ -50,6 +50,10 @@
       {
         "from": "sample-vault",
         "to": "sample-vault"
+      },
+      {
+        "from": "scripts/apply-update.ps1",
+        "to": "apply-update.ps1"
       }
     ]
   },

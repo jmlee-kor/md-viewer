@@ -7,6 +7,7 @@
 // Phase 2 가 asset(zip) 다운로드 + 스테이징 스왑을 추가한다.
 
 const https = require('node:https');
+const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -125,4 +126,53 @@ async function checkForUpdate(currentVersion, transport = httpsGetJson) {
   }
 }
 
-module.exports = { checkForUpdate, compareSemver, getConfig, setBaseDir, httpsGetJson, ASSET_RE };
+/**
+ * 릴리스 에셋(zip) 을 파일로 스트림 다운로드. http/https 모두 지원(테스트는 localhost http).
+ * GitHub 에셋 URL 은 objects.githubusercontent.com 으로 302 리다이렉트 → 따라감.
+ * @param {string} url
+ * @param {string} dest 저장 경로
+ * @param {{token?:string, headers?:object, onProgress?:(received:number,total:number)=>void}} opts
+ * @returns {Promise<{path:string, size:number}>}
+ */
+function downloadFile(url, dest, opts = {}) {
+  const { token, headers = {}, onProgress } = opts;
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('http://') ? http : https;
+    const reqHeaders = { 'User-Agent': 'md-viewer', Accept: 'application/octet-stream', ...headers };
+    if (token) reqHeaders.Authorization = `Bearer ${token}`;
+    const req = mod.get(url, { headers: reqHeaders }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        // 리다이렉트 시 Authorization 은 떨어뜨림(서명된 S3/CDN URL — 토큰 불필요·거부될 수 있음)
+        return resolve(downloadFile(res.headers.location, dest, { headers, onProgress }));
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`HTTP ${res.statusCode}`));
+      }
+      const total = parseInt(res.headers['content-length'] || '0', 10);
+      let received = 0;
+      const out = fs.createWriteStream(dest);
+      res.on('data', (chunk) => {
+        received += chunk.length;
+        if (onProgress) onProgress(received, total);
+      });
+      res.pipe(out);
+      out.on('finish', () => out.close(() => resolve({ path: dest, size: received })));
+      out.on('error', (e) => reject(e));
+      res.on('error', (e) => reject(e));
+    });
+    req.on('error', reject);
+    req.setTimeout(120000, () => req.destroy(new Error('download timeout')));
+  });
+}
+
+module.exports = {
+  checkForUpdate,
+  compareSemver,
+  getConfig,
+  setBaseDir,
+  httpsGetJson,
+  downloadFile,
+  ASSET_RE,
+};

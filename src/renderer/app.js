@@ -48,6 +48,8 @@ class MdvApp extends LitElement {
     _vaultLoading: { state: true },
     _update: { state: true },
     _updateChecking: { state: true },
+    _updateApplying: { state: true },
+    _updateProgress: { state: true },
   };
 
   static styles = [
@@ -899,6 +901,22 @@ class MdvApp extends LitElement {
       cursor: pointer;
       font-size: 0.9rem;
     }
+    .update-banner .ub-apply {
+      background: var(--accent, #4ec9b0);
+      color: #0b1f1a;
+      border: 0;
+      border-radius: 6px;
+      padding: 0.15rem 0.7rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .update-banner .ub-err { color: var(--danger-fg, #f48771); }
+    .update-banner .ub-spin {
+      display: inline-block;
+      animation: ub-rot 1s linear infinite;
+    }
+    @keyframes ub-rot { to { transform: rotate(360deg); } }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -1288,6 +1306,8 @@ class MdvApp extends LitElement {
     this._update = null; // 자동 업데이트 확인 결과 {available, current, latest, notes, asset}
     this._updateDismissed = false; // 이번 세션에서 배너 닫음
     this._updateChecking = false; // 설정 패널 수동 확인 중
+    this._updateApplying = false; // 다운로드+적용 진행 중
+    this._updateProgress = null; // {phase, received, total, error}
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1301,6 +1321,11 @@ class MdvApp extends LitElement {
     this._unsubUpdate = window.mdv.onUpdateAvailable((info) => {
       this._update = info;
       this._updateDismissed = false;
+    });
+    // 적용 진행률(다운로드/추출/스왑)
+    this._unsubUpdateProgress = window.mdv.onUpdateProgress((p) => {
+      this._updateProgress = p;
+      if (p?.phase === 'error') this._updateApplying = false;
     });
     // 다이얼로그/창 전환 등으로 포커스 잃으면 플로팅 메뉴 닫기
     this._onBlur = () => (this._menuOpen = false);
@@ -1342,6 +1367,7 @@ class MdvApp extends LitElement {
     this._unsub?.();
     this._unsubMax?.();
     this._unsubUpdate?.();
+    this._unsubUpdateProgress?.();
     window.removeEventListener('blur', this._onBlur);
     window.removeEventListener('wheel', this._onWheel);
     window.removeEventListener('keydown', this._onKeydown);
@@ -1873,15 +1899,56 @@ class MdvApp extends LitElement {
   }
 
   // --- 자동 업데이트 (Phase 1: 감지 + 알림) ---
-  /** 새 버전 감지 시 콘텐츠 상단 배너. Phase 2 에서 "지금 업데이트" 적용 버튼을 추가. */
+  /** 새 버전 감지 시 콘텐츠 상단 배너. 다운로드+적용 진행 중이면 진행 상태를 표시. */
   _renderUpdateBanner() {
     if (!this._update?.available || this._updateDismissed) return '';
+    if (this._updateApplying) {
+      const p = this._updateProgress || {};
+      let label = '업데이트 준비 중…';
+      if (p.phase === 'download') {
+        const pct = p.total ? Math.floor((p.received / p.total) * 100) : null;
+        label = pct != null ? `새 버전 다운로드 중… ${pct}%` : '새 버전 다운로드 중…';
+      } else if (p.phase === 'extract') label = '압축 해제 중…';
+      else if (p.phase === 'swap') label = '교체 후 재시작합니다…';
+      return html`<div class="update-banner" role="status">
+        <span class="ub-icon ub-spin">⟳</span>
+        <span class="ub-text">${label}</span>
+      </div>`;
+    }
+    const err = this._updateProgress?.phase === 'error' ? this._updateProgress.error : null;
     return html`<div class="update-banner" role="status">
       <span class="ub-icon">⬆</span>
-      <span class="ub-text">새 버전 <strong>${this._update.latest}</strong> 사용 가능 (현재 ${this._update.current})</span>
+      <span class="ub-text">
+        새 버전 <strong>${this._update.latest}</strong> 사용 가능 (현재 ${this._update.current})
+        ${err ? html`<span class="ub-err">— 적용 실패: ${err}</span>` : ''}
+      </span>
+      ${this._update.asset
+        ? html`<button class="ub-apply" @click=${this._applyUpdate} title="다운로드 후 재시작하며 적용">지금 업데이트</button>`
+        : ''}
       <button class="ub-link" @click=${this._openSettings} title="업데이트 정보">자세히</button>
       <button class="ub-x" @click=${this._dismissUpdate} title="이번 세션 동안 숨기기">✕</button>
     </div>`;
+  }
+
+  /** 다운로드+추출+스왑 헬퍼 실행 → 앱 종료/재시작. 실패 시 배너에 에러 표시. */
+  async _applyUpdate() {
+    if (!this._update?.asset) {
+      this._openSettings();
+      return;
+    }
+    this._updateApplying = true;
+    this._updateProgress = { phase: 'download', received: 0, total: this._update.asset.size || 0 };
+    let res;
+    try {
+      res = await window.mdv.applyUpdate(this._update);
+    } catch (e) {
+      res = { ok: false, error: String(e) };
+    }
+    if (!res?.ok) {
+      this._updateApplying = false;
+      this._updateProgress = { phase: 'error', error: res?.error || '적용 실패' };
+    }
+    // ok 면 메인이 곧 앱을 종료하고 헬퍼가 재시작한다.
   }
 
   _dismissUpdate() {

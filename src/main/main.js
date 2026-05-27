@@ -6,6 +6,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn, execFile } = require('node:child_process');
 const vault = require('./vault');
 const linkIndex = require('./link-index');
 const plantuml = require('./plantuml');
@@ -423,6 +424,97 @@ async function runUpdateCheck(manual = false) {
 
 // 수동 확인(설정 패널의 "지금 확인") — 가용 여부와 무관하게 현재/최신/에러를 반환.
 ipcMain.handle('update:check', () => runUpdateCheck(true));
+
+// powershell Expand-Archive 로 zip 추출 (fetch-tools.mjs 와 동일 방식, 런타임 의존 0).
+function extractZip(zip, destDir) {
+  return new Promise((resolve, reject) => {
+    fs.rmSync(destDir, { recursive: true, force: true });
+    fs.mkdirSync(destDir, { recursive: true });
+    execFile(
+      'powershell',
+      ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${destDir}' -Force`],
+      { windowsHide: true },
+      (err) => (err ? reject(err) : resolve(destDir))
+    );
+  });
+}
+
+// 추출 결과에서 실제 앱 루트(<exe> 가 직접 있는 디렉토리) 탐색. zip 이 한 겹 폴더로 감싼 경우 대응.
+function findAppRoot(dir, exe) {
+  if (fs.existsSync(path.join(dir, exe))) return dir;
+  for (const name of fs.readdirSync(dir)) {
+    const sub = path.join(dir, name);
+    if (fs.statSync(sub).isDirectory() && fs.existsSync(path.join(sub, exe))) return sub;
+  }
+  return null;
+}
+
+// 새 버전 다운로드 → 추출 → 분리 헬퍼(powershell)가 종료 후 스왑+재실행. 앱은 종료.
+// 실행 중 자기 파일 잠금을 피하려 반드시 종료 후 헬퍼가 교체한다([[feedback_verify_install_artifact_updated]]).
+ipcMain.handle('update:apply', async (_e, info) => {
+  if (!app.isPackaged) {
+    return { ok: false, error: '개발 모드에서는 자동 적용을 지원하지 않습니다 (패키징 설치본 전용).' };
+  }
+  const asset = info?.asset;
+  if (!asset?.url) return { ok: false, error: '다운로드할 패키징 에셋이 릴리스에 없습니다.' };
+
+  const exe = path.basename(app.getPath('exe')); // md-viewer.exe
+  const installDir = path.dirname(app.getPath('exe'));
+  const work = path.join(app.getPath('temp'), 'md-viewer-update');
+  const zip = path.join(work, 'download.zip');
+  const extracted = path.join(work, 'extracted');
+  const send = (p) => mainWindow?.webContents.send('update:progress', p);
+
+  try {
+    fs.rmSync(work, { recursive: true, force: true });
+    fs.mkdirSync(work, { recursive: true });
+
+    // 1) 다운로드 (진행률 → 렌더러)
+    send({ phase: 'download', received: 0, total: asset.size || 0 });
+    const cfg = updater.getConfig();
+    await updater.downloadFile(asset.url, zip, {
+      token: cfg.token,
+      onProgress: (received, total) => send({ phase: 'download', received, total: total || asset.size || 0 }),
+    });
+    // 크기 검증(릴리스 메타가 있으면)
+    const got = fs.statSync(zip).size;
+    if (asset.size && got !== asset.size) {
+      throw new Error(`다운로드 크기 불일치: ${got} ≠ ${asset.size}`);
+    }
+
+    // 2) 추출 + 앱 루트 탐색
+    send({ phase: 'extract' });
+    await extractZip(zip, extracted);
+    const stagedRoot = findAppRoot(extracted, exe);
+    if (!stagedRoot) throw new Error(`추출물에서 ${exe} 를 찾지 못함`);
+
+    // 3) 분리 헬퍼 spawn (앱 종료 후 스왑) → 앱 종료
+    const helper = app.isPackaged
+      ? path.join(process.resourcesPath, 'apply-update.ps1')
+      : path.join(__dirname, '..', '..', 'scripts', 'apply-update.ps1');
+    send({ phase: 'swap' });
+    const child = spawn(
+      'powershell',
+      [
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helper,
+        '-OwnerPid', String(process.pid),
+        '-Staged', stagedRoot,
+        '-Install', installDir,
+        '-Exe', exe,
+        '-Log', path.join(work, 'apply.log'),
+      ],
+      { detached: true, stdio: 'ignore', windowsHide: true }
+    );
+    child.unref();
+
+    // 헬퍼가 종료를 기다리도록 약간의 여유 후 종료
+    setTimeout(() => app.quit(), 400);
+    return { ok: true, phase: 'restarting' };
+  } catch (err) {
+    send({ phase: 'error', error: String((err && err.message) || err) });
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+});
 
 function startUpdateChecks() {
   const cfg = updater.getConfig();

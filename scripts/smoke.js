@@ -45,6 +45,8 @@ ipcMain.handle('update:check', () =>
     assets: [{ name: 'md-viewer-win-x64.zip', browser_download_url: 'http://x/a.zip', size: 7 }],
   }))
 );
+// 적용은 실제 스왑 없이 스텁(헤드리스에선 dev 모드라 main 도 ok:false). 렌더러 경로만 검증.
+ipcMain.handle('update:apply', () => ({ ok: false, error: 'smoke-stub' }));
 
 // mdv-res 프로토콜 (privileged 등록은 ready 이전)
 resProtocol.registerPrivileged();
@@ -1010,6 +1012,30 @@ app.whenReady().then(async () => {
       const updDismissOk = !appEl.shadowRoot.querySelector('.update-banner');
       const updateOk = updApiOk && updCheckOk && updBannerOk && updDismissOk;
 
+      // 자동 업데이트 Phase 2: 적용 버튼 + 진행률 + 에러 경로
+      const updApplyApiOk =
+        typeof window.mdv.applyUpdate === 'function' && typeof window.mdv.onUpdateProgress === 'function';
+      appEl._update = { available: true, latest: '9.9.9', current: '0.1.0', asset: { name: 'md-viewer-win-x64.zip', url: 'http://x/a.zip', size: 10 } };
+      appEl._updateApplying = false;
+      appEl._updateProgress = null;
+      appEl._updateDismissed = false;
+      await appEl.updateComplete;
+      const applyBtn = appEl.shadowRoot.querySelector('.update-banner .ub-apply');
+      const applyBtnOk = !!applyBtn && applyBtn.textContent.includes('지금 업데이트');
+      // 진행률 표시(다운로드 50%)
+      appEl._updateApplying = true;
+      appEl._updateProgress = { phase: 'download', received: 50, total: 100 };
+      await appEl.updateComplete;
+      const progOk = /50%/.test(appEl.shadowRoot.querySelector('.update-banner').textContent);
+      // 적용 호출 → 스텁이 ok:false → 에러 상태 + 배너 에러 표기
+      appEl._updateApplying = false;
+      await appEl._applyUpdate();
+      await appEl.updateComplete;
+      const applyErrOk =
+        appEl._updateProgress?.phase === 'error' &&
+        /적용 실패/.test(appEl.shadowRoot.querySelector('.update-banner').textContent);
+      const updateApplyOk = updApplyApiOk && applyBtnOk && progOk && applyErrOk;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -1088,6 +1114,7 @@ app.whenReady().then(async () => {
         viewBarOk,
         memoizeOk,
         updateOk,
+        updateApplyOk,
         diagramSanitizeOk,
         sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
         mermaidFO, mermaidLabelOk, d2LabelOk, d2FO, d2Sized,
@@ -1179,6 +1206,7 @@ app.whenReady().then(async () => {
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
     if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');
     if (!result.updateOk) fail('자동 업데이트 실패 (checkUpdate IPC/배너 렌더/닫기)');
+    if (!result.updateApplyOk) fail('자동 업데이트 적용 실패 (applyUpdate API/지금 업데이트 버튼/진행률/에러 경로)');
     if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
     if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
     if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');

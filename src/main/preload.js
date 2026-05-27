@@ -51,6 +51,14 @@ contextBridge.exposeInMainWorld('mdv', {
     ipcRenderer.on('update:available', listener);
     return () => ipcRenderer.removeListener('update:available', listener);
   },
+  /** 원클릭 적용: 다운로드+추출+스왑 헬퍼 spawn 후 앱 종료 → { ok, phase } | { ok:false, error } */
+  applyUpdate: (info) => ipcRenderer.invoke('update:apply', info),
+  /** 적용 진행률 구독 → { phase:'download'|'extract'|'swap'|'error', received?, total?, error? }. 해제 함수 반환 */
+  onUpdateProgress: (cb) => {
+    const listener = (_e, p) => cb(p);
+    ipcRenderer.on('update:progress', listener);
+    return () => ipcRenderer.removeListener('update:progress', listener);
+  },
 
   // --- 발표 이중 창 (발표자 메인 창 ↔ 청중 창) — 메인 프로세스 IPC 릴레이 ---
   /** 발표 시작: 청중 창 생성 + marp src 전달 */
