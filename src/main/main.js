@@ -9,6 +9,7 @@ const path = require('node:path');
 const vault = require('./vault');
 const linkIndex = require('./link-index');
 const plantuml = require('./plantuml');
+const updater = require('./updater');
 const resProtocol = require('./res-protocol');
 
 // Windows 작업표시줄 identity. 이게 없으면 "electron" 으로 그룹/표시된다.
@@ -25,6 +26,10 @@ resProtocol.registerPrivileged();
 // PlantUML tools/ 탐색 기준: 패키징 시 resourcesPath(extraResources 번들 위치),
 // dev 시 프로젝트 루트. → 패키징본은 번들된 tools/(jre+jar)로 자동 동작.
 plantuml.setBaseDir(
+  app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', '..')
+);
+// 자동 업데이트 설정(mdv.config.json) 기준 경로 — 패키징본/dev 동일 규칙.
+updater.setBaseDir(
   app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', '..')
 );
 
@@ -400,9 +405,38 @@ ipcMain.on('present:nav', (_e, action) => mainWindow?.webContents.send('present:
 
 ipcMain.on('present:close', closeAudience);
 
+// --- 자동 업데이트: 주기 확인 + 알림 (Phase 1) ---
+let updateTimer = null;
+
+/**
+ * 최신 릴리스 확인. 새 버전이면 메인 창에 update:available 푸시.
+ * @param manual 수동 확인(설정 패널)이면 결과를 그대로 반환(가용 여부 무관 표시용).
+ */
+async function runUpdateCheck(manual = false) {
+  const result = await updater.checkForUpdate(app.getVersion());
+  if (result.available && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update:available', result);
+  }
+  if (manual) return result;
+  return null;
+}
+
+// 수동 확인(설정 패널의 "지금 확인") — 가용 여부와 무관하게 현재/최신/에러를 반환.
+ipcMain.handle('update:check', () => runUpdateCheck(true));
+
+function startUpdateChecks() {
+  const cfg = updater.getConfig();
+  if (!cfg.enabled) return;
+  // 시작 직후 1회(창 로드 여유 8s) + 주기 반복.
+  setTimeout(() => runUpdateCheck(false), 8000);
+  const ms = Math.max(1, cfg.intervalH) * 3600 * 1000;
+  updateTimer = setInterval(() => runUpdateCheck(false), ms);
+}
+
 app.whenReady().then(() => {
   resProtocol.handle(() => currentVaultRoot);
   createWindow();
+  startUpdateChecks();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -410,5 +444,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (watcher) watcher.close();
+  if (updateTimer) clearInterval(updateTimer);
   if (process.platform !== 'darwin') app.quit();
 });

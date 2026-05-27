@@ -10,6 +10,7 @@ const plantuml = require('../src/main/plantuml');
 const resProtocol = require('../src/main/res-protocol');
 const vault = require('../src/main/vault');
 const linkIndex = require('../src/main/link-index');
+const updater = require('../src/main/updater');
 
 const SAMPLE_VAULT = path.join(__dirname, '..', 'sample-vault');
 
@@ -35,6 +36,15 @@ ipcMain.handle('vault:search', (_e, q) => linkIndex.searchContent(smokeContents,
 ipcMain.handle('vault:samplePath', () => SAMPLE_VAULT);
 // 발표 이중 창: 실제 청중 창은 안 띄우고 invoke 만 성공 처리(렌더러 콘솔 에러 방지). send 채널은 핸들러 불요.
 ipcMain.handle('present:open', () => true);
+
+// 자동 업데이트: mock transport(네트워크 없이) 로 새 버전 응답 → checkUpdate 전체 경로 검증.
+ipcMain.handle('update:check', () =>
+  updater.checkForUpdate('0.1.0', async () => ({
+    tag_name: 'v9.9.9',
+    body: '릴리스 노트',
+    assets: [{ name: 'md-viewer-win-x64.zip', browser_download_url: 'http://x/a.zip', size: 7 }],
+  }))
+);
 
 // mdv-res 프로토콜 (privileged 등록은 ready 이전)
 resProtocol.registerPrivileged();
@@ -635,8 +645,10 @@ app.whenReady().then(async () => {
       // 설정 패널: PlantUML 도구 상태(java/jar/dot 3행) 표시 + 닫기
       await appEl._openSettings();
       await appEl.updateComplete;
-      const setRows = appEl.shadowRoot.querySelectorAll('.set-panel .set-row').length;
-      const setShown = !!appEl.shadowRoot.querySelector('.set-panel') && setRows === 3 && !!appEl._settingsData;
+      const setRows = appEl.shadowRoot.querySelectorAll('.set-panel .set-row').length; // PlantUML 3행 + 자동 업데이트 2행
+      const setUpdateSection = !!appEl.shadowRoot.querySelector('.set-panel .set-check'); // "지금 확인" 버튼
+      const setShown =
+        !!appEl.shadowRoot.querySelector('.set-panel') && setRows >= 3 && !!appEl._settingsData && setUpdateSection;
       appEl._closeSettings();
       await appEl.updateComplete;
       const settingsOk = setShown && !appEl.shadowRoot.querySelector('.set-overlay');
@@ -981,6 +993,23 @@ app.whenReady().then(async () => {
       await appEl.updateComplete;
       const vaultLoadingOk = loadingShown && !appEl.shadowRoot.querySelector('.vault-loading');
 
+      // 자동 업데이트: 수동 확인 IPC(mock) + 배너 렌더 + 닫기
+      const updApiOk =
+        typeof window.mdv.checkUpdate === 'function' && typeof window.mdv.onUpdateAvailable === 'function';
+      const upd = await window.mdv.checkUpdate();
+      const updCheckOk = !!(
+        upd && upd.available && upd.latest === '9.9.9' && upd.asset && /win.*\\.zip$/i.test(upd.asset.name)
+      );
+      appEl._update = upd;
+      appEl._updateDismissed = false;
+      await appEl.updateComplete;
+      const banner = appEl.shadowRoot.querySelector('.update-banner');
+      const updBannerOk = !!(banner && banner.textContent.includes('9.9.9'));
+      appEl._dismissUpdate();
+      await appEl.updateComplete;
+      const updDismissOk = !appEl.shadowRoot.querySelector('.update-banner');
+      const updateOk = updApiOk && updCheckOk && updBannerOk && updDismissOk;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -1058,6 +1087,7 @@ app.whenReady().then(async () => {
         reHydrateOk,
         viewBarOk,
         memoizeOk,
+        updateOk,
         diagramSanitizeOk,
         sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
         mermaidFO, mermaidLabelOk, d2LabelOk, d2FO, d2Sized,
@@ -1148,6 +1178,7 @@ app.whenReady().then(async () => {
     if (!result.reHydrateOk) fail('원본↔렌더 토글 후 다이어그램 재hydrate 실패');
     if (!result.viewBarOk) fail('콘텐츠 상단 토글 바 탭 실패');
     if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');
+    if (!result.updateOk) fail('자동 업데이트 실패 (checkUpdate IPC/배너 렌더/닫기)');
     if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
     if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
     if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');

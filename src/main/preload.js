@@ -6,7 +6,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mdv', {
-  version: '0.1.0',
+  version: '0.2.0',
   /** vault 폴더 선택 → { root, tree } | null */
   openVault: () => ipcRenderer.invoke('vault:open'),
   /** 현재 vault 재스캔 → { root, tree } | null */
@@ -40,6 +40,16 @@ contextBridge.exposeInMainWorld('mdv', {
     const listener = (_e, data) => cb(data);
     ipcRenderer.on('vault:changed', listener);
     return () => ipcRenderer.removeListener('vault:changed', listener);
+  },
+
+  // --- 자동 업데이트 (Phase 1: 감지 + 알림) ---
+  /** 수동 확인 → { available, current, latest, notes, asset } | { ..., error } | { disabled } */
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  /** 새 버전 감지 푸시 구독 → 위 결과 객체. 해제 함수 반환 */
+  onUpdateAvailable: (cb) => {
+    const listener = (_e, info) => cb(info);
+    ipcRenderer.on('update:available', listener);
+    return () => ipcRenderer.removeListener('update:available', listener);
   },
 
   // --- 발표 이중 창 (발표자 메인 창 ↔ 청중 창) — 메인 프로세스 IPC 릴레이 ---

@@ -46,6 +46,8 @@ class MdvApp extends LitElement {
     _hoverPreview: { state: true },
     _settingsOpen: { state: true },
     _vaultLoading: { state: true },
+    _update: { state: true },
+    _updateChecking: { state: true },
   };
 
   static styles = [
@@ -859,6 +861,44 @@ class MdvApp extends LitElement {
       padding: 0 0.3em;
       border-radius: 3px;
     }
+    .set-check {
+      background: var(--btn, #3a3d41);
+      color: var(--fg, #d4d4d4);
+      border: 1px solid var(--border, #4a4d51);
+      border-radius: 6px;
+      padding: 0.15rem 0.6rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .set-check:disabled { opacity: 0.5; cursor: default; }
+    /* 자동 업데이트 배너 (콘텐츠 상단) */
+    .update-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.35rem 0.8rem;
+      background: color-mix(in srgb, var(--accent, #4ec9b0) 18%, var(--panel, #252729));
+      border-bottom: 1px solid var(--border, #3a3d41);
+      font-size: 0.84rem;
+      color: var(--fg, #d4d4d4);
+    }
+    .update-banner .ub-icon { color: var(--accent, #4ec9b0); font-weight: 700; }
+    .update-banner .ub-text { flex: 1 1 auto; }
+    .update-banner .ub-link {
+      background: none;
+      border: 0;
+      color: var(--accent, #4ec9b0);
+      cursor: pointer;
+      font-size: 0.82rem;
+      text-decoration: underline;
+    }
+    .update-banner .ub-x {
+      background: none;
+      border: 0;
+      color: var(--muted, #9aa0a6);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -1245,6 +1285,9 @@ class MdvApp extends LitElement {
     this._settingsOpen = false; // 설정(도구 상태) 패널
     this._settingsData = null;
     this._vaultLoading = false; // vault 스캔/인덱싱 중 로딩 표시
+    this._update = null; // 자동 업데이트 확인 결과 {available, current, latest, notes, asset}
+    this._updateDismissed = false; // 이번 세션에서 배너 닫음
+    this._updateChecking = false; // 설정 패널 수동 확인 중
     this._resolver = makeResolver(null);
     this.addEventListener('mdv-select', (e) => this._onSelect(e.detail.relPath));
   }
@@ -1254,6 +1297,11 @@ class MdvApp extends LitElement {
     // 파일 변경 라이브 갱신
     this._unsub = window.mdv.onVaultChanged((data) => this._applyVault(data, true));
     this._unsubMax = window.mdv.onMaximizeChange((isMax) => (this._maximized = isMax));
+    // 자동 업데이트: 새 버전 감지 푸시 → 배너 표시
+    this._unsubUpdate = window.mdv.onUpdateAvailable((info) => {
+      this._update = info;
+      this._updateDismissed = false;
+    });
     // 다이얼로그/창 전환 등으로 포커스 잃으면 플로팅 메뉴 닫기
     this._onBlur = () => (this._menuOpen = false);
     window.addEventListener('blur', this._onBlur);
@@ -1293,6 +1341,7 @@ class MdvApp extends LitElement {
     super.disconnectedCallback();
     this._unsub?.();
     this._unsubMax?.();
+    this._unsubUpdate?.();
     window.removeEventListener('blur', this._onBlur);
     window.removeEventListener('wheel', this._onWheel);
     window.removeEventListener('keydown', this._onKeydown);
@@ -1823,6 +1872,74 @@ class MdvApp extends LitElement {
     this._settingsOpen = false;
   }
 
+  // --- 자동 업데이트 (Phase 1: 감지 + 알림) ---
+  /** 새 버전 감지 시 콘텐츠 상단 배너. Phase 2 에서 "지금 업데이트" 적용 버튼을 추가. */
+  _renderUpdateBanner() {
+    if (!this._update?.available || this._updateDismissed) return '';
+    return html`<div class="update-banner" role="status">
+      <span class="ub-icon">⬆</span>
+      <span class="ub-text">새 버전 <strong>${this._update.latest}</strong> 사용 가능 (현재 ${this._update.current})</span>
+      <button class="ub-link" @click=${this._openSettings} title="업데이트 정보">자세히</button>
+      <button class="ub-x" @click=${this._dismissUpdate} title="이번 세션 동안 숨기기">✕</button>
+    </div>`;
+  }
+
+  _dismissUpdate() {
+    this._updateDismissed = true;
+    this.requestUpdate();
+  }
+
+  /** 설정 패널의 "지금 확인" — main 에 수동 확인 요청 후 결과 표시. */
+  async _checkUpdate() {
+    this._updateChecking = true;
+    try {
+      const res = await window.mdv.checkUpdate();
+      this._update = res;
+      if (res?.available) this._updateDismissed = false;
+    } catch {
+      this._update = { error: '확인 실패' };
+    } finally {
+      this._updateChecking = false;
+    }
+  }
+
+  _renderUpdateSettings() {
+    const u = this._update;
+    const current = u?.current || window.mdv.version || '?';
+    let status;
+    if (this._updateChecking) status = html`<span class="set-src">확인 중…</span>`;
+    else if (!u) status = html`<span class="set-src">아직 확인 안 함</span>`;
+    else if (u.disabled) status = html`<span class="set-src">자동 확인 꺼짐</span>`;
+    else if (u.error) status = html`<span class="set-badge bad">오류</span><span class="set-src">${u.error}</span>`;
+    else if (u.available)
+      status = html`<span class="set-badge ok">새 버전 ${u.latest}</span>${u.asset ? '' : html`<span class="set-src">패키징 에셋 없음</span>`}`;
+    else status = html`<span class="set-badge na">최신</span>`;
+    return html`
+      <div class="set-head" style="margin-top:0.8rem">
+        <span>자동 업데이트</span>
+        <button
+          class="set-check"
+          ?disabled=${this._updateChecking}
+          @click=${this._checkUpdate}
+          title="지금 최신 버전 확인"
+        >지금 확인</button>
+      </div>
+      <div class="set-row">
+        <span class="set-label">현재 버전</span>
+        <code class="set-path">${current}</code>
+      </div>
+      <div class="set-row">
+        <span class="set-label">상태</span>
+        ${status}
+      </div>
+      <div class="set-note">
+        GitHub Releases 를 주기적으로 확인해 새 버전을 알립니다. 소스/주기/토큰은 환경변수
+        (MDV_UPDATE_REPO · MDV_UPDATE_INTERVAL_H · MDV_UPDATE_TOKEN · MDV_UPDATE_ENABLED) 또는
+        <code>mdv.config.json</code> (updateRepo · updateIntervalH · updateToken · updateEnabled) 으로 재정의.
+      </div>
+    `;
+  }
+
   _renderSettings() {
     const s = this._settingsData;
     const row = (label, item, hint) => {
@@ -1855,6 +1972,7 @@ class MdvApp extends LitElement {
                 </div>
               `
             : html`<div class="set-note">도구 상태를 불러올 수 없습니다.</div>`}
+          ${this._renderUpdateSettings()}
         </div>
       </div>
     `;
@@ -2389,6 +2507,7 @@ ${lines.map(
     return html`
       <link rel="stylesheet" href="../../vendor/katex/katex.min.css" />
       ${this._renderTitlebar()}
+      ${this._renderUpdateBanner()}
       <div class="body" style="grid-template-columns: ${this._sidebarWidth}px 6px 1fr">
         <aside class="sidebar">
           ${this._tree.length
