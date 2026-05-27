@@ -22,6 +22,17 @@ function Log($m) {
   if ($Log) { $line | Out-File -FilePath $Log -Append -Encoding utf8 }
 }
 
+# 백업 폴더 삭제 재시도: 방금 종료시킨 옛 프로세스의 파일 핸들이 늦게 풀려
+# Remove-Item 이 바로는 실패할 수 있다 → 짧게 여러 번 재시도.
+function Remove-WithRetry($path, $tries = 8, $delayMs = 500) {
+  for ($i = 0; $i -lt $tries; $i++) {
+    if (-not (Test-Path $path)) { return $true }
+    try { Remove-Item -Recurse -Force $path -ErrorAction Stop; return $true }
+    catch { Start-Sleep -Milliseconds $delayMs }
+  }
+  return (-not (Test-Path $path))
+}
+
 $backup = "$Install._bak"
 
 try {
@@ -42,7 +53,9 @@ try {
   }
 
   # 3) 기존 설치 백업 (같은 볼륨이면 Move 는 즉시)
-  if (Test-Path $backup) { Remove-Item -Recurse -Force $backup }
+  if (Test-Path $backup) {
+    if (-not (Remove-WithRetry $backup)) { throw "이전 백업 제거 실패: $backup" }
+  }
   if (Test-Path $Install) { Move-Item -Path $Install -Destination $backup -Force }
 
   # 4) 스테이징 → 설치 위치로 이동(스왑)
@@ -56,10 +69,11 @@ try {
     throw "스왑 후 $Exe 없음"
   }
 
-  # 6) 성공 → 백업 제거 + 재실행
-  Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue
+  # 6) 성공 → 재실행(먼저) + 백업 제거(재시도)
   Log "swap OK → relaunch"
   Start-Process -FilePath (Join-Path $Install $Exe)
+  # 백업 삭제는 재실행 뒤에 — 핸들 해제까지 재시도, 그래도 남으면 다음 업데이트가 정리(무해).
+  if (-not (Remove-WithRetry $backup)) { Log "backup 잔류(파일 잠금) — 다음 업데이트가 정리: $backup" }
   Log "done"
   exit 0
 }
