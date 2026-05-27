@@ -488,27 +488,36 @@ ipcMain.handle('update:apply', async (_e, info) => {
     const stagedRoot = findAppRoot(extracted, exe);
     if (!stagedRoot) throw new Error(`추출물에서 ${exe} 를 찾지 못함`);
 
-    // 3) 분리 헬퍼 spawn (앱 종료 후 스왑) → 앱 종료
+    // 3) 분리 헬퍼 실행 (앱 종료 후 스왑) → 앱 종료
     const helper = app.isPackaged
       ? path.join(process.resourcesPath, 'apply-update.ps1')
       : path.join(__dirname, '..', '..', 'scripts', 'apply-update.ps1');
     send({ phase: 'swap' });
-    const child = spawn(
-      'powershell',
-      [
-        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helper,
-        '-OwnerPid', String(process.pid),
-        '-Staged', stagedRoot,
-        '-Install', installDir,
-        '-Exe', exe,
-        '-Log', path.join(work, 'apply.log'),
-      ],
-      { detached: true, stdio: 'ignore', windowsHide: true }
+
+    // 단순 detached spawn 으로는 Electron 의 Job Object(kill-on-close)가 앱 종료 시
+    // 자식 powershell 까지 죽인다(실측). cmd `start` 로 job 에서 breakaway 시켜
+    // 앱이 종료돼도 헬퍼가 살아남아 스왑·재실행하게 한다.
+    const logPath = path.join(work, 'apply.log');
+    const launchCmd = path.join(work, 'launch.cmd');
+    const q = (s) => `"${s}"`;
+    fs.writeFileSync(
+      launchCmd,
+      '@echo off\r\n' +
+        `powershell -NoProfile -ExecutionPolicy Bypass -File ${q(helper)} ` +
+        `-OwnerPid ${process.pid} -Staged ${q(stagedRoot)} -Install ${q(installDir)} ` +
+        `-Exe ${q(exe)} -Log ${q(logPath)}\r\n`,
+      'utf8'
     );
+    const child = spawn('cmd.exe', ['/c', 'start', '""', '/min', launchCmd], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.on('error', () => {}); // spawn 실패해도 앱은 곧 종료 — 조용히 무시
     child.unref();
 
-    // 헬퍼가 종료를 기다리도록 약간의 여유 후 종료
-    setTimeout(() => app.quit(), 400);
+    // 헬퍼가 우리 종료를 기다리도록 약간의 여유 후 종료
+    setTimeout(() => app.quit(), 800);
     return { ok: true, phase: 'restarting' };
   } catch (err) {
     send({ phase: 'error', error: String((err && err.message) || err) });
