@@ -16,10 +16,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tools = path.join(root, 'tools');
 
 // 고정 버전 (재현성). 갱신 시 여기만 바꾼다.
-const JRE_URL =
-  'https://api.adoptium.net/v3/binary/version/jdk-21.0.7%2B6/windows/x64/jre/hotspot/normal/eclipse?project=jdk';
-const JRE_FALLBACK =
-  'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk';
+// JRE 대신 JDK 를 받아 jlink 로 PlantUML 이 쓰는 모듈만 담은 슬림 런타임을 만든다
+// (풀 JRE ~145MB → 슬림 ~50MB). jdeps/jlink 가 JDK 에만 있어 JDK 필요.
+const JDK_URL =
+  'https://api.adoptium.net/v3/binary/version/jdk-21.0.7%2B6/windows/x64/jdk/hotspot/normal/eclipse?project=jdk';
+const JDK_FALLBACK =
+  'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk';
 const JAR_URL =
   'https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml/1.2024.7/plantuml-1.2024.7.jar';
 const GRAPHVIZ_VERSION = '12.2.1';
@@ -84,24 +86,55 @@ if (fs.existsSync(jar)) {
   console.log(`${(sz / 1024 / 1024).toFixed(1)} MB`);
 }
 
-// 2) JRE (zip 다운로드 → Expand-Archive → tools/jre)
+// 2) 슬림 Java 런타임: JDK 다운로드 → jdeps 로 PlantUML 모듈 산출 → jlink 로 tools/jre 생성
+//    bin/java.exe 경로는 풀 JRE 와 동일 → plantuml.js 변경 불필요.
 const javaExe = path.join(tools, 'jre', 'bin', 'java.exe');
 if (fs.existsSync(javaExe)) {
-  console.log('JRE 이미 있음 — 건너뜀');
+  console.log('java 런타임 이미 있음 — 건너뜀');
 } else {
-  process.stdout.write('JRE 다운로드 … ');
-  const zip = path.join(tools, '_jre.zip');
-  const sz = await downloadFirst([JRE_URL, JRE_FALLBACK], zip);
+  process.stdout.write('JDK 다운로드 … ');
+  const zip = path.join(tools, '_jdk.zip');
+  const sz = await downloadFirst([JDK_URL, JDK_FALLBACK], zip);
   console.log(`${(sz / 1024 / 1024).toFixed(1)} MB, 압축 해제 …`);
-  const tmpDir = path.join(tools, '_jretmp');
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-  execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${tmpDir}' -Force`]);
-  const inner = fs.readdirSync(tmpDir)[0]; // 단일 최상위 폴더
+  const jdkTmp = path.join(tools, '_jdktmp');
+  fs.rmSync(jdkTmp, { recursive: true, force: true });
+  execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zip}' -DestinationPath '${jdkTmp}' -Force`]);
+  const jdkDir = path.join(jdkTmp, fs.readdirSync(jdkTmp)[0]); // 단일 최상위 폴더
+  const jdeps = path.join(jdkDir, 'bin', 'jdeps.exe');
+  const jlink = path.join(jdkDir, 'bin', 'jlink.exe');
+
+  // PlantUML 이 쓰는 모듈을 jdeps 로 산출(reflective 누락 대비 안전 모듈 union).
+  let detected = [];
+  try {
+    const out = execFileSync(
+      jdeps,
+      ['--print-module-deps', '--ignore-missing-deps', '--multi-release', '21', jar],
+      { encoding: 'utf8' }
+    ).trim();
+    detected = out.split(',').map((s) => s.trim()).filter(Boolean);
+    console.log('jdeps 모듈:', detected.join(',') || '(없음)');
+  } catch (e) {
+    console.warn('jdeps 실패 → 안전 모듈셋만 사용:', e.message);
+  }
+  // PlantUML 런타임 안전 보강(jdeps 는 정적 의존만 봐서 reflective/런타임 의존 누락).
+  // 실측: PlantUML Run.main 이 즉시 java.util.logging 사용 → java.logging 필수.
+  // AWT/이미지(java.desktop), XML(SVG), 스크립팅, JMX, JNDI, 환경설정, sun.misc 포함.
+  const safe = [
+    'java.base', 'java.desktop', 'java.datatransfer', 'java.logging', 'java.xml',
+    'java.scripting', 'java.management', 'java.naming', 'java.prefs', 'jdk.unsupported',
+  ];
+  const modules = Array.from(new Set([...detected, ...safe])).join(',');
+  console.log('jlink add-modules:', modules);
+
   fs.rmSync(path.join(tools, 'jre'), { recursive: true, force: true });
-  fs.renameSync(path.join(tmpDir, inner), path.join(tools, 'jre'));
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  execFileSync(
+    jlink,
+    ['--add-modules', modules, '--output', path.join(tools, 'jre'), '--strip-debug', '--no-header-files', '--no-man-pages', '--compress=2'],
+    { stdio: 'inherit' }
+  );
+  fs.rmSync(jdkTmp, { recursive: true, force: true });
   fs.rmSync(zip, { force: true });
-  console.log('JRE 준비 완료: tools/jre');
+  console.log('슬림 java 런타임 준비 완료: tools/jre');
 }
 
 // 3) Graphviz (dot) — 클래스/상태/컴포넌트 등 dot 레이아웃 다이어그램용
