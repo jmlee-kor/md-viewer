@@ -67,6 +67,13 @@
 - 최근 vault 리스트 + 시작 시 자동 열기
 - 코드/원본 보기 CJK 정렬 monospace 폰트(NanumGothicCoding 번들)
 
+**자동 업데이트** (인터넷 환경 — 패키징 설치본)
+- GitHub Releases 를 주기적으로 확인(기본 6시간 + 시작 직후) → 새 버전 시 상단 배너 알림
+- **"지금 업데이트"** 원클릭: 다운로드 → 앱 종료 후 헬퍼가 교체 → 자동 재시작 (검증·실패 시 롤백)
+- 버전 건너뛰기, 설정 패널에서 현재/최신 확인 + "지금 확인"
+- 네트워크 조회는 main 프로세스에서만 → 렌더러 CSP·오프라인 보안 모델 무훼손, 런타임 의존 0
+- 소스/주기/토큰 재정의: `MDV_UPDATE_*` 또는 `mdv.config.json`. 발행 절차는 [DISTRIBUTION.md](DISTRIBUTION.md)
+
 ## 개발 (인터넷 되는 PC)
 
 ```bash
@@ -91,6 +98,7 @@ src/main/         Electron main process
   vault.js          재귀 .md 스캔 + path-traversal 방어 읽기
   link-index.js     위키링크 해석 + 백링크 인덱스 + 전문 검색(searchContent)
   plantuml.js       java -jar plantuml.jar -pipe IPC (경로 해석/번들 탐지)
+  updater.js        GitHub Releases 확인(semver) + 에셋 다운로드 (자동 업데이트)
   res-protocol.js   mdv-res:// 커스텀 프로토콜 (vault 로컬 이미지 서빙)
   preload.js        contextBridge 안전 API (window.mdv)
 src/renderer/     UI (Lit)
@@ -102,7 +110,8 @@ src/renderer/     UI (Lit)
   settings.js       localStorage 설정 (최근 vault·mermaid 테마·사이드바 너비 등)
   scrollbar-css.js  공유 스크롤바 스타일 · styles.css  document 스타일 + @font-face
 vendor/           오프라인 vendored 라이브러리 + fonts/ (git 커밋 대상, 약 19MB)
-scripts/          vendor 생성(fetch/bundle) + tools 자동반입 + 설치 + 테스트/스모크
+scripts/          vendor 생성(fetch/bundle) + tools 자동반입 + 설치 + 릴리스 패킹(pack-release) + 테스트/스모크
+  apply-update.ps1  자동 업데이트 스왑 헬퍼 (앱 종료 후 교체·재실행, 설치본 번들)
 tools/            PlantUML 반입 바이너리 위치 (dev: 수동 / 설치본: 자동 번들)
 ```
 
