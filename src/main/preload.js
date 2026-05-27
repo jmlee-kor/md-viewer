@@ -6,7 +6,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mdv', {
-  version: '0.3.0',
+  version: '0.3.1',
   /** vault 폴더 선택 → { root, tree } | null */
   openVault: () => ipcRenderer.invoke('vault:open'),
   /** 현재 vault 재스캔 → { root, tree } | null */
