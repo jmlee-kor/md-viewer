@@ -70,6 +70,50 @@ git add -A && git commit -m "vendor 갱신" && git push
 
 ---
 
+## 메인테이너: 자동 업데이트 릴리스 발행 (GitHub Releases)
+
+설치본은 GitHub Releases 를 주기적으로 확인해 새 버전을 배너로 알리고, 사용자가
+**"지금 업데이트"** 를 누르면 zip 을 받아 교체 후 재시작합니다(인터넷 전제 —
+폐쇄망 타깃은 ①/② 수동 배포 유지).
+
+새 버전 발행 절차:
+
+```bash
+# 1) 버전 올리기 (package.json + preload.js 의 version 동일하게)
+#    예: 0.2.0 → 0.3.0
+
+# 2) 패키징 에셋 생성: dist/md-viewer-win-x64.zip (+ .sha256)
+npm run dist:release
+
+# 3) 커밋/푸시 후 릴리스 발행 (gh CLI)
+git commit -am "vX.Y.Z" && git push
+gh release create vX.Y.Z --repo jmlee-kor/md-viewer --target main \
+  --title "vX.Y.Z" --notes "변경점…" \
+  dist/md-viewer-win-x64.zip dist/md-viewer-win-x64.zip.sha256
+```
+
+- 에셋 이름은 `updater.ASSET_RE`(`/win.*\.zip$/i`)에 매칭되어야 자동 다운로드됩니다
+  (`md-viewer-win-x64.zip` 권장). zip 루트에 `md-viewer.exe` 가 직접 와야 합니다
+  (`pack-release.mjs` 가 그렇게 만듭니다).
+- 설치본은 시작 8초 후 + 주기적으로 `releases/latest` 와 자기 버전을 비교합니다.
+- **적용 메커니즘**: 실행 중 자기 파일을 잠그므로, 다운로드·추출 후 분리 헬퍼
+  (`apply-update.ps1`, `extraResources` 로 번들)가 앱 종료를 기다렸다가 설치
+  디렉토리를 교체(백업→스왑→`app.asar` 검증→재실행, 실패 시 롤백)합니다.
+
+확인 동작 재정의 (환경변수 또는 기준 경로의 `mdv.config.json`):
+
+| 환경변수 | `mdv.config.json` | 기본값 |
+|------|------|------|
+| `MDV_UPDATE_REPO` | `updateRepo` | `jmlee-kor/md-viewer` |
+| `MDV_UPDATE_INTERVAL_H` | `updateIntervalH` | `6` (시간) |
+| `MDV_UPDATE_TOKEN` | `updateToken` | (없음; 비공개 repo 용) |
+| `MDV_UPDATE_ENABLED` | `updateEnabled` | `true` |
+
+> 릴리스가 하나도 없으면(404) 오류가 아니라 "최신"으로 표시됩니다.
+> 사용자는 배너의 **건너뛰기**로 특정 버전 알림을 끌 수 있습니다(설정에서 해제).
+
+---
+
 ## (대안) PlantUML 도구를 Chocolatey 로 설치
 
 자동 번들(①) 대신 인터넷 PC에서 Chocolatey 로 의존성을 설치할 수도 있습니다.

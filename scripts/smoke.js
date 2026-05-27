@@ -1036,6 +1036,21 @@ app.whenReady().then(async () => {
         /적용 실패/.test(appEl.shadowRoot.querySelector('.update-banner').textContent);
       const updateApplyOk = updApplyApiOk && applyBtnOk && progOk && applyErrOk;
 
+      // skip-version: '건너뛰기' → 해당 버전 배너 숨김, '해제' → 복귀
+      appEl._updateApplying = false;
+      appEl._updateProgress = null;
+      appEl._updateDismissed = false;
+      appEl._update = { available: true, latest: '9.9.9', current: '0.1.0' };
+      await appEl.updateComplete;
+      const beforeSkip = !!appEl.shadowRoot.querySelector('.update-banner');
+      appEl._skipUpdate();
+      await appEl.updateComplete;
+      const afterSkip = !appEl.shadowRoot.querySelector('.update-banner');
+      appEl._clearSkip();
+      await appEl.updateComplete;
+      const afterClear = !!appEl.shadowRoot.querySelector('.update-banner');
+      const updateSkipOk = beforeSkip && afterSkip && afterClear;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -1115,6 +1130,7 @@ app.whenReady().then(async () => {
         memoizeOk,
         updateOk,
         updateApplyOk,
+        updateSkipOk,
         diagramSanitizeOk,
         sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
         mermaidFO, mermaidLabelOk, d2LabelOk, d2FO, d2Sized,
@@ -1207,6 +1223,7 @@ app.whenReady().then(async () => {
     if (!result.memoizeOk) fail('다이어그램 메모이즈(캐시 히트) 실패');
     if (!result.updateOk) fail('자동 업데이트 실패 (checkUpdate IPC/배너 렌더/닫기)');
     if (!result.updateApplyOk) fail('자동 업데이트 적용 실패 (applyUpdate API/지금 업데이트 버튼/진행률/에러 경로)');
+    if (!result.updateSkipOk) fail('자동 업데이트 버전 건너뛰기/해제 실패');
     if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
     if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
     if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');

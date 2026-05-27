@@ -76,7 +76,9 @@ function httpsGetJson(url, headers = {}) {
         }
         if (res.statusCode !== 200) {
           res.resume();
-          return reject(new Error(`HTTP ${res.statusCode}`));
+          const err = new Error(`HTTP ${res.statusCode}`);
+          err.statusCode = res.statusCode;
+          return reject(err);
         }
         let body = '';
         res.setEncoding('utf8');
@@ -122,6 +124,10 @@ async function checkForUpdate(currentVersion, transport = httpsGetJson) {
       asset,
     };
   } catch (e) {
+    // 릴리스가 아직 하나도 없으면 GitHub 는 404 → 오류가 아니라 '릴리스 없음(최신)' 으로 처리.
+    if (e && e.statusCode === 404) {
+      return { available: false, current: currentVersion, latest: null, noRelease: true };
+    }
     return { available: false, current: currentVersion, error: String((e && e.message) || e) };
   }
 }

@@ -1902,6 +1902,8 @@ class MdvApp extends LitElement {
   /** 새 버전 감지 시 콘텐츠 상단 배너. 다운로드+적용 진행 중이면 진행 상태를 표시. */
   _renderUpdateBanner() {
     if (!this._update?.available || this._updateDismissed) return '';
+    // 사용자가 "이 버전 건너뛰기" 한 버전이면 숨김 (다음 버전부터 다시 알림)
+    if (getSetting('skipUpdateVersion', '') === this._update.latest && !this._updateApplying) return '';
     if (this._updateApplying) {
       const p = this._updateProgress || {};
       let label = '업데이트 준비 중…';
@@ -1926,8 +1928,21 @@ class MdvApp extends LitElement {
         ? html`<button class="ub-apply" @click=${this._applyUpdate} title="다운로드 후 재시작하며 적용">지금 업데이트</button>`
         : ''}
       <button class="ub-link" @click=${this._openSettings} title="업데이트 정보">자세히</button>
+      <button class="ub-link" @click=${this._skipUpdate} title="이 버전은 다시 알리지 않음">건너뛰기</button>
       <button class="ub-x" @click=${this._dismissUpdate} title="이번 세션 동안 숨기기">✕</button>
     </div>`;
+  }
+
+  /** 이 버전은 다시 알리지 않음 (localStorage 영속). 다음 상위 버전부터 재알림. */
+  _skipUpdate() {
+    if (this._update?.latest) setSetting('skipUpdateVersion', this._update.latest);
+    this.requestUpdate();
+  }
+
+  /** 건너뛴 버전 해제 → 배너 다시 표시. */
+  _clearSkip() {
+    setSetting('skipUpdateVersion', '');
+    this.requestUpdate();
   }
 
   /** 다운로드+추출+스왑 헬퍼 실행 → 앱 종료/재시작. 실패 시 배너에 에러 표시. */
@@ -1977,6 +1992,7 @@ class MdvApp extends LitElement {
     if (this._updateChecking) status = html`<span class="set-src">확인 중…</span>`;
     else if (!u) status = html`<span class="set-src">아직 확인 안 함</span>`;
     else if (u.disabled) status = html`<span class="set-src">자동 확인 꺼짐</span>`;
+    else if (u.noRelease) status = html`<span class="set-badge na">최신</span><span class="set-src">발행된 릴리스 없음</span>`;
     else if (u.error) status = html`<span class="set-badge bad">오류</span><span class="set-src">${u.error}</span>`;
     else if (u.available)
       status = html`<span class="set-badge ok">새 버전 ${u.latest}</span>${u.asset ? '' : html`<span class="set-src">패키징 에셋 없음</span>`}`;
@@ -1999,6 +2015,13 @@ class MdvApp extends LitElement {
         <span class="set-label">상태</span>
         ${status}
       </div>
+      ${getSetting('skipUpdateVersion', '')
+        ? html`<div class="set-row">
+            <span class="set-label">건너뛴 버전</span>
+            <code class="set-path">${getSetting('skipUpdateVersion', '')}</code>
+            <button class="set-check" @click=${this._clearSkip}>해제</button>
+          </div>`
+        : ''}
       <div class="set-note">
         GitHub Releases 를 주기적으로 확인해 새 버전을 알립니다. 소스/주기/토큰은 환경변수
         (MDV_UPDATE_REPO · MDV_UPDATE_INTERVAL_H · MDV_UPDATE_TOKEN · MDV_UPDATE_ENABLED) 또는

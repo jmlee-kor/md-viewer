@@ -1,6 +1,6 @@
 {
   "name": "md-viewer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "사내 폐쇄망용 Obsidian형 Markdown 뷰어 (Electron, offline)",
   "main": "src/main/main.js",
   "scripts": {
@@ -16,6 +16,8 @@
     "make:icon": "electron scripts/make-icon.js",
     "tools:fetch": "node scripts/fetch-tools.mjs",
     "dist": "npm run tools:fetch && electron-builder --win --dir",
+    "release:pack": "node scripts/pack-release.mjs",
+    "dist:release": "npm run dist && node scripts/pack-release.mjs",
     "install:local": "npm run dist && node scripts/install-local.mjs"
   },
   "build": {

@@ -49,6 +49,16 @@ assert.strictEqual(u.compareSemver('1.0.0-beta', '1.0.0'), 0, 'pre-release 라�
   assert.strictEqual(errd.available, false, '오류 시 미가용');
   assert.ok(errd.error, '오류 메시지 보존');
 
+  // --- 릴리스 없음(404)은 오류가 아니라 noRelease ---
+  const r404 = await u.checkForUpdate('0.1.0', async () => {
+    const e = new Error('HTTP 404');
+    e.statusCode = 404;
+    throw e;
+  });
+  assert.strictEqual(r404.available, false, '릴리스 없으면 미가용');
+  assert.strictEqual(r404.noRelease, true, '404 → noRelease');
+  assert.ok(!r404.error, '404 는 error 로 표기 안 함');
+
   // --- 비활성화(MDV_UPDATE_ENABLED=false) ---
   process.env.MDV_UPDATE_ENABLED = 'false';
   const off = await u.checkForUpdate('0.1.0', newer);
