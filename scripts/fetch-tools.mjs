@@ -43,14 +43,44 @@ async function downloadAndExtract(urls, label, destDir, zipName) {
   fs.rmSync(zip, { force: true });
 }
 
-function download(url, dest, redirects = 0) {
+// curl 감지: Win10 1803+ System32 기본 포함. 사내 프록시/MITM 인증서 환경에서는
+// curl 이 Windows 시스템 설정(프록시·인증서 저장소)을 따르므로 Node https 보다 안정적.
+// 가능하면 curl 우선 사용, 없으면 Node https 로 폴백 (MDV_FETCH_NO_CURL=1 로 강제 비활성).
+function detectCurl() {
+  if (process.env.MDV_FETCH_NO_CURL === '1') return false;
+  try { execFileSync('curl', ['--version'], { stdio: 'ignore' }); return true; }
+  catch { return false; }
+}
+const HAS_CURL = detectCurl();
+console.log(HAS_CURL ? '다운로드: curl (시스템 프록시/인증서 사용)' : '다운로드: Node https (curl 없음)');
+
+function downloadCurl(url, dest) {
+  return new Promise((resolve, reject) => {
+    const tmp = dest + '.tmp';
+    try {
+      // -f 실패시 비0, -s 진행률 숨김, -S 에러 표시, -L 리다이렉트, --retry 3 + --retry-connrefused
+      execFileSync(
+        'curl',
+        ['-fsSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '600', '-o', tmp, url],
+        { stdio: ['ignore', 'inherit', 'inherit'] }
+      );
+      fs.renameSync(tmp, dest);
+      resolve(fs.statSync(dest).size);
+    } catch (e) {
+      fs.rmSync(tmp, { force: true });
+      reject(e);
+    }
+  });
+}
+
+function downloadNode(url, dest, redirects = 0) {
   return new Promise((resolve, reject) => {
     if (redirects > 6) return reject(new Error('redirect 과다'));
     https
       .get(url, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
-          return resolve(download(new URL(res.headers.location, url).toString(), dest, redirects + 1));
+          return resolve(downloadNode(new URL(res.headers.location, url).toString(), dest, redirects + 1));
         }
         if (res.statusCode !== 200) {
           res.resume();
@@ -64,6 +94,10 @@ function download(url, dest, redirects = 0) {
       })
       .on('error', reject);
   });
+}
+
+function download(url, dest) {
+  return HAS_CURL ? downloadCurl(url, dest) : downloadNode(url, dest);
 }
 
 async function downloadFirst(urls, dest) {
