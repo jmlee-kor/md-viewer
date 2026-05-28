@@ -10,6 +10,17 @@ const https = require('node:https');
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync, spawn } = require('node:child_process');
+
+// curl 감지: Win10 1803+ System32 기본 포함. 사내 프록시/MITM 인증서 환경에서는
+// curl 이 시스템 프록시·인증서 저장소를 따라 ECONNRESET 등을 회피. 가능하면 curl 우선,
+// 없으면 Node https 로 폴백 (MDV_UPDATE_NO_CURL=1 로 강제 비활성).
+function detectCurl() {
+  if (process.env.MDV_UPDATE_NO_CURL === '1') return false;
+  try { execFileSync('curl', ['--version'], { stdio: 'ignore' }); return true; }
+  catch { return false; }
+}
+const HAS_CURL = detectCurl();
 
 const DEFAULT_REPO = 'jmlee-kor/md-viewer';
 const DEFAULT_INTERVAL_H = 6; // 주기 확인 간격(시간)
@@ -63,8 +74,44 @@ function compareSemver(a, b) {
   return 0;
 }
 
-/** 기본 transport: GitHub API GET → JSON. 테스트는 주입으로 대체(네트워크 없이 검증). */
+/** GET URL → JSON. curl(시스템 프록시·인증서) 우선, 없으면 Node https. 테스트는 transport 주입. */
 function httpsGetJson(url, headers = {}) {
+  return HAS_CURL ? httpsGetJsonCurl(url, headers) : httpsGetJsonNode(url, headers);
+}
+
+/** curl 로 JSON GET. --fail 미사용 → 상태코드를 -w 로 stdout 말미에 추가해 분리. */
+function httpsGetJsonCurl(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const SENTINEL = '\n__MDV_HTTP_STATUS__:';
+    const args = [
+      '-sSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '60',
+      '-H', 'User-Agent: md-viewer',
+      '-H', 'Accept: application/vnd.github+json',
+    ];
+    for (const [k, v] of Object.entries(headers)) args.push('-H', `${k}: ${v}`);
+    args.push('-w', `${SENTINEL}%{http_code}`, url);
+    let out = '', err = '';
+    const child = spawn('curl', args, { windowsHide: true });
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (err += d));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(err.trim() || `curl exit ${code}`));
+      const idx = out.lastIndexOf(SENTINEL);
+      if (idx < 0) return reject(new Error('curl: status 센티넬 없음'));
+      const status = parseInt(out.slice(idx + SENTINEL.length).trim(), 10);
+      const body = out.slice(0, idx);
+      if (status === 200) {
+        try { return resolve(JSON.parse(body)); } catch (e) { return reject(e); }
+      }
+      const e = new Error(`HTTP ${status}`);
+      e.statusCode = status;
+      reject(e);
+    });
+  });
+}
+
+function httpsGetJsonNode(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = https.get(
       url,
@@ -72,7 +119,7 @@ function httpsGetJson(url, headers = {}) {
       (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
-          return resolve(httpsGetJson(res.headers.location, headers));
+          return resolve(httpsGetJsonNode(res.headers.location, headers));
         }
         if (res.statusCode !== 200) {
           res.resume();
@@ -133,7 +180,7 @@ async function checkForUpdate(currentVersion, transport = httpsGetJson) {
 }
 
 /**
- * 릴리스 에셋(zip) 을 파일로 스트림 다운로드. http/https 모두 지원(테스트는 localhost http).
+ * 릴리스 에셋(zip) 을 파일로 다운로드. curl(시스템 프록시) 우선, 없으면 Node http/https.
  * GitHub 에셋 URL 은 objects.githubusercontent.com 으로 302 리다이렉트 → 따라감.
  * @param {string} url
  * @param {string} dest 저장 경로
@@ -141,6 +188,44 @@ async function checkForUpdate(currentVersion, transport = httpsGetJson) {
  * @returns {Promise<{path:string, size:number}>}
  */
 function downloadFile(url, dest, opts = {}) {
+  return HAS_CURL ? downloadFileCurl(url, dest, opts) : downloadFileNode(url, dest, opts);
+}
+
+/** curl 로 다운로드. 진행률은 임시 파일 크기 폴링(curl 의 진행 출력 파싱은 fragile). */
+function downloadFileCurl(url, dest, { token, headers = {}, onProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    fs.rmSync(dest, { force: true });
+    const args = [
+      '-fsSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '3600',
+      '-o', dest,
+      '-H', 'User-Agent: md-viewer',
+    ];
+    for (const [k, v] of Object.entries(headers)) args.push('-H', `${k}: ${v}`);
+    if (token) args.push('-H', `Authorization: Bearer ${token}`); // curl 은 redirect 시 자동으로 Auth 떨어뜨림
+    args.push(url);
+    let err = '';
+    const child = spawn('curl', args, { windowsHide: true });
+    child.stderr.on('data', (d) => (err += d));
+    let timer = null;
+    if (onProgress) {
+      timer = setInterval(() => {
+        try { onProgress(fs.statSync(dest).size, 0); } catch { /* 파일 아직 없음 */ }
+      }, 500);
+    }
+    child.on('error', (e) => { if (timer) clearInterval(timer); reject(e); });
+    child.on('close', (code) => {
+      if (timer) clearInterval(timer);
+      if (code !== 0) return reject(new Error(err.trim() || `curl exit ${code}`));
+      try {
+        const sz = fs.statSync(dest).size;
+        if (onProgress) onProgress(sz, sz);
+        resolve({ path: dest, size: sz });
+      } catch (e) { reject(e); }
+    });
+  });
+}
+
+function downloadFileNode(url, dest, opts = {}) {
   const { token, headers = {}, onProgress } = opts;
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('http://') ? http : https;
@@ -150,7 +235,7 @@ function downloadFile(url, dest, opts = {}) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         // 리다이렉트 시 Authorization 은 떨어뜨림(서명된 S3/CDN URL — 토큰 불필요·거부될 수 있음)
-        return resolve(downloadFile(res.headers.location, dest, { headers, onProgress }));
+        return resolve(downloadFileNode(res.headers.location, dest, { headers, onProgress }));
       }
       if (res.statusCode !== 200) {
         res.resume();
