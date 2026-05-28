@@ -1079,6 +1079,53 @@ app.whenReady().then(async () => {
 
       const updateErrorGuideOk = rateGuideOk && netGuideOk && noGuideOk && copyApiOk;
 
+      // 설정 패널에서 바로 업데이트 적용 버튼 (가용 + 에셋 + 적용중 아님일 때만 표시)
+      appEl._update = { available: true, latest: '9.9.9', current: '0.3.12', asset: { name: 'md-viewer-win-x64.zip', url: 'http://x/a.zip', size: 10 } };
+      appEl._updateApplying = false;
+      appEl._updateDismissed = false;
+      await appEl._openSettings();
+      await appEl.updateComplete;
+      const setApplyBtn = appEl.shadowRoot.querySelector('.set-panel .set-apply');
+      const setApplyShow = !!setApplyBtn && /지금 업데이트/.test(setApplyBtn.textContent);
+      appEl._updateApplying = true;
+      await appEl.updateComplete;
+      const setApplyHidden = !appEl.shadowRoot.querySelector('.set-panel .set-apply');
+      appEl._updateApplying = false;
+      // 클릭 시 설정 닫힘
+      await appEl.updateComplete;
+      const btn2 = appEl.shadowRoot.querySelector('.set-panel .set-apply');
+      btn2?.click();
+      await appEl.updateComplete;
+      const setApplyClosed = !appEl._settingsOpen;
+      const updateSettingsApplyOk = setApplyShow && setApplyHidden && setApplyClosed;
+      // 정리
+      appEl._updateApplying = false;
+      appEl._update = null;
+      await appEl.updateComplete;
+
+      // Ctrl+A: 컨텐츠(.note) 만 선택, 메뉴/사이드바 미포함
+      appEl._marpSrc = null;
+      appEl._selected = 'select-test.md';
+      appEl._rawView = false;
+      appEl._curDir = '';
+      appEl._noteHtml = '<p>SELECT-ALL-MARKER-XYZ</p>';
+      appEl._paletteOpen = false; appEl._settingsOpen = false; appEl._lightboxOpen = false; appEl._graphOpen = false;
+      await appEl.updateComplete;
+      window.getSelection().removeAllRanges();
+      appEl._handleSelectAll({ preventDefault: () => {} });
+      const selText = String(window.getSelection());
+      const selContentOnlyOk =
+        selText.includes('SELECT-ALL-MARKER-XYZ') &&
+        !selText.includes('vault 검색') &&
+        !selText.includes('Vault 열기');
+      // 모달 열려있으면 skip(기본 동작 보존)
+      window.getSelection().removeAllRanges();
+      appEl._paletteOpen = true;
+      appEl._handleSelectAll({ preventDefault: () => {} });
+      const selSkipOnModalOk = window.getSelection().toString() === '';
+      appEl._paletteOpen = false;
+      const selectAllOk = selContentOnlyOk && selSkipOnModalOk;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -1160,6 +1207,8 @@ app.whenReady().then(async () => {
         updateApplyOk,
         updateSkipOk,
         updateErrorGuideOk,
+        updateSettingsApplyOk,
+        selectAllOk,
         diagramSanitizeOk,
         sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
         mermaidFO, mermaidLabelOk, d2LabelOk, d2FO, d2Sized,
@@ -1254,6 +1303,8 @@ app.whenReady().then(async () => {
     if (!result.updateApplyOk) fail('자동 업데이트 적용 실패 (applyUpdate API/지금 업데이트 버튼/진행률/에러 경로)');
     if (!result.updateSkipOk) fail('자동 업데이트 버전 건너뛰기/해제 실패');
     if (!result.updateErrorGuideOk) fail('업데이트 에러 인라인 가이드 실패 (rate-limit/network 분류, 미분류 미표시, copy API)');
+    if (!result.updateSettingsApplyOk) fail('설정 패널 "지금 업데이트" 버튼 실패 (가용 시 표시/적용중 숨김/클릭 시 설정 닫힘)');
+    if (!result.selectAllOk) fail('Ctrl+A 컨텐츠 한정 선택 실패 (.note만 선택/모달 시 skip)');
     if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
     if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
     if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');

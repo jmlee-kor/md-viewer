@@ -873,6 +873,17 @@ class MdvApp extends LitElement {
       cursor: pointer;
     }
     .set-check:disabled { opacity: 0.5; cursor: default; }
+    .set-apply {
+      margin-left: auto;
+      background: var(--accent, #4ec9b0);
+      color: #0b1f1a;
+      border: 0;
+      border-radius: 6px;
+      padding: 0.15rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
     /* 자동 업데이트 배너 (콘텐츠 상단) */
     .update-banner {
       display: flex;
@@ -1396,6 +1407,8 @@ class MdvApp extends LitElement {
       } else if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
         this._goForward();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        this._handleSelectAll(e);
       }
     };
     window.addEventListener('keydown', this._onKeydown);
@@ -1984,6 +1997,34 @@ class MdvApp extends LitElement {
     this.requestUpdate();
   }
 
+  /** 설정 패널에서 바로 업데이트 적용: 설정 닫고(배너 진행 표시) _applyUpdate 호출 */
+  _applyFromSettings() {
+    this._closeSettings();
+    this._applyUpdate();
+  }
+
+  /**
+   * Ctrl+A: 앱 전체가 아닌 콘텐츠(렌더/원본)만 선택.
+   * 입력 필드/모달 안에서는 기본 동작 보존.
+   */
+  _handleSelectAll(e) {
+    // 입력에 포커스면 기본 동작(필드 내 텍스트 전체 선택)
+    const ae = this.shadowRoot?.activeElement;
+    const tag = (ae?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+    // 모달 열려있으면 그쪽에 맡김(기본 동작)
+    if (this._paletteOpen || this._settingsOpen || this._lightboxOpen || this._graphOpen) return;
+    // 콘텐츠 영역: 원본 보기면 .raw, 아니면 .note
+    const target = this.shadowRoot.querySelector(this._rawView ? '.raw' : '.note');
+    if (!target) return; // 노트 미선택 → 기본 동작
+    e.preventDefault();
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
   /** 업데이트 에러 분류 (인라인 가이드 표시용) */
   _classifyUpdateError(error) {
     if (!error) return null;
@@ -2104,6 +2145,9 @@ class MdvApp extends LitElement {
       <div class="set-row">
         <span class="set-label">상태</span>
         ${status}
+        ${u?.available && u.asset && !this._updateApplying
+          ? html`<button class="set-apply" @click=${this._applyFromSettings} title="다운로드 후 재시작하며 적용">지금 업데이트</button>`
+          : ''}
       </div>
       ${u?.error ? this._renderUpdateErrorGuide(u.error) : ''}
       ${getSetting('skipUpdateVersion', '')
