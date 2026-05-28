@@ -1051,6 +1051,34 @@ app.whenReady().then(async () => {
       const afterClear = !!appEl.shadowRoot.querySelector('.update-banner');
       const updateSkipOk = beforeSkip && afterSkip && afterClear;
 
+      // 업데이트 에러 인라인 가이드 (rate limit / network 분류)
+      appEl._update = { available: false, current: '0.3.7', error: 'API rate limit exceeded for 1.2.3.4 (HTTP 403)' };
+      await appEl._openSettings();
+      await appEl.updateComplete;
+      const rateG = appEl.shadowRoot.querySelector('.err-guide');
+      const rateGuideOk = !!rateG && /사용량 초과/.test(rateG.textContent) && /setx MDV_UPDATE_TOKEN/.test(rateG.textContent);
+      appEl._closeSettings(); await appEl.updateComplete;
+
+      appEl._update = { available: false, current: '0.3.7', error: 'curl (35) Recv failure: connection was reset' };
+      await appEl._openSettings();
+      await appEl.updateComplete;
+      const netG = appEl.shadowRoot.querySelector('.err-guide');
+      const netGuideOk = !!netG && /네트워크/.test(netG.textContent) && /MDV_HTTPS_PROXY/.test(netG.textContent);
+      appEl._closeSettings(); await appEl.updateComplete;
+
+      // 분류 안 되는 에러는 가이드 미표시
+      appEl._update = { available: false, current: '0.3.7', error: '랜덤 알 수 없는 오류' };
+      await appEl._openSettings();
+      await appEl.updateComplete;
+      const noGuideOk = !appEl.shadowRoot.querySelector('.err-guide');
+      appEl._closeSettings(); await appEl.updateComplete;
+      appEl._update = null; // 정리
+
+      // 복사 IPC 노출 확인
+      const copyApiOk = typeof window.mdv.copy === 'function';
+
+      const updateErrorGuideOk = rateGuideOk && netGuideOk && noGuideOk && copyApiOk;
+
       return {
         hasOpenApi: typeof window.mdv.openVault === 'function',
         hasReadApi: typeof window.mdv.readNote === 'function',
@@ -1131,6 +1159,7 @@ app.whenReady().then(async () => {
         updateOk,
         updateApplyOk,
         updateSkipOk,
+        updateErrorGuideOk,
         diagramSanitizeOk,
         sanitizeDiag: { sanitizeStripScript, sanitizeStripHandler, sanitizeStripJsHref, sanitizeKeepsBenign },
         mermaidFO, mermaidLabelOk, d2LabelOk, d2FO, d2Sized,
@@ -1224,6 +1253,7 @@ app.whenReady().then(async () => {
     if (!result.updateOk) fail('자동 업데이트 실패 (checkUpdate IPC/배너 렌더/닫기)');
     if (!result.updateApplyOk) fail('자동 업데이트 적용 실패 (applyUpdate API/지금 업데이트 버튼/진행률/에러 경로)');
     if (!result.updateSkipOk) fail('자동 업데이트 버전 건너뛰기/해제 실패');
+    if (!result.updateErrorGuideOk) fail('업데이트 에러 인라인 가이드 실패 (rate-limit/network 분류, 미분류 미표시, copy API)');
     if (!result.diagramSanitizeOk) fail(`다이어그램 SVG 새니타이즈 실패 — ${JSON.stringify(result.sanitizeDiag)}`);
     if (!result.mermaidLabelOk) fail('mermaid 라벨 손실 — 살균이 foreignObject htmlLabels 를 제거함(trusted 면제 회귀)');
     if (!result.d2LabelOk) fail('d2 라벨 손실 — 살균이 노드 텍스트를 제거함');

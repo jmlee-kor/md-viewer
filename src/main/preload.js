@@ -6,7 +6,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mdv', {
-  version: '0.3.7',
+  version: '0.3.8',
   /** vault 폴더 선택 → { root, tree } | null */
   openVault: () => ipcRenderer.invoke('vault:open'),
   /** 현재 vault 재스캔 → { root, tree } | null */
@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('mdv', {
   exportDiagram: (payload) => ipcRenderer.invoke('diagram:export', payload),
   /** 창/보기 액션 (reload, devtools, zoom in·out·reset, fullscreen, maximize, minimize, close, quit) */
   appAction: (name) => ipcRenderer.invoke('app:action', name),
+  /** 텍스트 → 시스템 클립보드 (sandbox 렌더러 navigator.clipboard 대체) */
+  copy: (text) => ipcRenderer.invoke('app:copy', text),
   /** 최대화 상태 변경 구독 → boolean. 해제 함수 반환 */
   onMaximizeChange: (cb) => {
     const listener = (_e, isMax) => cb(isMax);

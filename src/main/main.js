@@ -3,7 +3,7 @@
 // Electron main process.
 // 책임: 윈도우 + 보안 기본값 + vault IPC + 링크 인덱스 + 파일 감시(fs.watch, 의존성 0).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, screen, clipboard } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
@@ -424,6 +424,9 @@ async function runUpdateCheck(manual = false) {
 
 // 수동 확인(설정 패널의 "지금 확인") — 가용 여부와 무관하게 현재/최신/에러를 반환.
 ipcMain.handle('update:check', () => runUpdateCheck(true));
+
+// 클립보드 (sandbox 렌더러는 navigator.clipboard 비허용 → main 경유 IPC)
+ipcMain.handle('app:copy', (_e, text) => { try { clipboard.writeText(String(text ?? '')); return true; } catch { return false; } });
 
 // powershell Expand-Archive 로 zip 추출 (fetch-tools.mjs 와 동일 방식, 런타임 의존 0).
 function extractZip(zip, destDir) {

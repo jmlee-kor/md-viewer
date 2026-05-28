@@ -917,6 +917,45 @@ class MdvApp extends LitElement {
       animation: ub-rot 1s linear infinite;
     }
     @keyframes ub-rot { to { transform: rotate(360deg); } }
+    /* 업데이트 에러 인라인 가이드 (설정 패널) */
+    .err-guide {
+      background: var(--panel2, #2a2c2f);
+      border-left: 3px solid var(--cl-warn, #d4a017);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+    }
+    .eg-title { font-weight: 600; margin-bottom: 0.4rem; }
+    .err-guide p { margin: 0 0 0.6rem; color: var(--muted, #9aa0a6); font-size: 0.8rem; }
+    .eg-step {
+      font-size: 0.78rem;
+      color: var(--muted, #9aa0a6);
+      margin: 0.5rem 0 0.15rem;
+    }
+    .eg-cmd { display: flex; align-items: center; gap: 0.4rem; }
+    .eg-cmd code {
+      flex: 1 1 auto;
+      background: var(--code-bg, #2d2d2d);
+      padding: 0.25rem 0.55rem;
+      border-radius: 4px;
+      font-family: var(--mono, monospace);
+      font-size: 0.78rem;
+      overflow-x: auto;
+      white-space: nowrap;
+      color: #c8ccd0;
+    }
+    .eg-copy {
+      flex: 0 0 auto;
+      background: var(--btn, #3a3d41);
+      color: var(--fg, #d4d4d4);
+      border: 1px solid var(--border, #4a4d51);
+      border-radius: 4px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .eg-copy:hover { background: var(--btn-hover, #4a4d51); }
     .error {
       color: #f44747;
       padding: 1rem 2.5rem;
@@ -1945,6 +1984,57 @@ class MdvApp extends LitElement {
     this.requestUpdate();
   }
 
+  /** 업데이트 에러 분류 (인라인 가이드 표시용) */
+  _classifyUpdateError(error) {
+    if (!error) return null;
+    const e = String(error);
+    if (/rate limit/i.test(e) || /\bHTTP 403\b/.test(e)) return 'rate-limit';
+    if (/curl.*\(35\)|ECONNRESET|connection was reset|TLS|tls handshake|proxy|HTTPS_PROXY|self.?signed/i.test(e)) return 'network';
+    return null; // 분류 불가 → 가이드 미표시 (기본 에러 메시지로 충분)
+  }
+
+  /** 에러 유형별 인라인 가이드 (복사 버튼 포함). 분류 안 되면 빈 문자열. */
+  _renderUpdateErrorGuide(error) {
+    const kind = this._classifyUpdateError(error);
+    if (kind === 'rate-limit') {
+      return html`<div class="err-guide">
+        <div class="eg-title">🚦 GitHub API 사용량 초과 (60회/시간 · 미인증 시 IP 공유)</div>
+        <p>토큰을 설정하면 5000회/시간으로 늘어납니다. 사내 NAT 환경에서 권장.</p>
+        <div class="eg-step">1) cmd에서 토큰 얻기:</div>
+        ${this._cmdLine('gh auth token')}
+        <div class="eg-step">2) 영구 등록 (관리자 권한 불필요):</div>
+        ${this._cmdLine('setx MDV_UPDATE_TOKEN "ghp_복사한_토큰값"')}
+        <div class="eg-step">3) md-viewer 완전 종료 후 재실행.</div>
+      </div>`;
+    }
+    if (kind === 'network') {
+      return html`<div class="err-guide">
+        <div class="eg-title">🌐 네트워크/TLS 오류 (사내 프록시·MITM 인증서 가능성)</div>
+        <p>대부분 Windows IE 프록시 자동 감지로 해결되지만, 잡히지 않을 때 직접 지정.</p>
+        <div class="eg-step">현재 시스템 프록시 확인:</div>
+        ${this._cmdLine('netsh winhttp show proxy')}
+        <div class="eg-step">프록시 직접 지정:</div>
+        ${this._cmdLine('setx MDV_HTTPS_PROXY "http://호스트:포트"')}
+        <div class="eg-step">사내 MITM CA 신뢰가 필요한 경우:</div>
+        ${this._cmdLine('setx MDV_CA_BUNDLE "C:\\\\경로\\\\to\\\\ca.pem"')}
+        <div class="eg-step">설정 후 md-viewer 완전 종료 후 재실행.</div>
+      </div>`;
+    }
+    return '';
+  }
+
+  /** 가이드용 명령 한 줄 (코드블록 + 복사 버튼) */
+  _cmdLine(text) {
+    return html`<div class="eg-cmd">
+      <code>${text}</code>
+      <button class="eg-copy" @click=${() => this._copyText(text)} title="클립보드로 복사">복사</button>
+    </div>`;
+  }
+
+  async _copyText(text) {
+    try { await window.mdv.copy(text); } catch { /* 무시 */ }
+  }
+
   /** 다운로드+추출+스왑 헬퍼 실행 → 앱 종료/재시작. 실패 시 배너에 에러 표시. */
   async _applyUpdate() {
     if (!this._update?.asset) {
@@ -2015,6 +2105,7 @@ class MdvApp extends LitElement {
         <span class="set-label">상태</span>
         ${status}
       </div>
+      ${u?.error ? this._renderUpdateErrorGuide(u.error) : ''}
       ${getSetting('skipUpdateVersion', '')
         ? html`<div class="set-row">
             <span class="set-label">건너뛴 버전</span>
