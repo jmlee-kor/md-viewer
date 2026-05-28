@@ -102,12 +102,25 @@ gh release create vX.Y.Z --repo jmlee-kor/md-viewer --target main \
 
 확인 동작 재정의 (환경변수 또는 기준 경로의 `mdv.config.json`):
 
-| 환경변수 | `mdv.config.json` | 기본값 |
+| 환경변수 | `mdv.config.json` | 기본값 / 용도 |
 |------|------|------|
 | `MDV_UPDATE_REPO` | `updateRepo` | `jmlee-kor/md-viewer` |
 | `MDV_UPDATE_INTERVAL_H` | `updateIntervalH` | `6` (시간) |
-| `MDV_UPDATE_TOKEN` | `updateToken` | (없음; 비공개 repo 용) |
+| `MDV_UPDATE_TOKEN` | `updateToken` | (없음). **rate limit(60/hr) 회피용** — `gh auth token` 출력값을 넣으면 5000/hr |
 | `MDV_UPDATE_ENABLED` | `updateEnabled` | `true` |
+
+**사내 프록시·MITM 환경** (런타임 + 빌드 공통):
+
+| 환경변수 | `mdv.config.json` | 동작 |
+|------|------|------|
+| `MDV_HTTPS_PROXY` | `httpsProxy` | curl 에 명시적 프록시 지정 (`http://host:port`) |
+| `MDV_CA_BUNDLE` | `caBundle` | curl `--cacert` 경로 (사내 MITM CA 신뢰) |
+| `MDV_UPDATE_NO_CURL=1` | — | 런타임 자동 업데이트의 curl 강제 비활성 → Node https 폴백 |
+| `MDV_FETCH_NO_CURL=1` | — | 빌드 시 fetch-tools 의 curl 강제 비활성 |
+
+- 위 설정이 없으면 자동 탐지 순서: **`MDV_HTTPS_PROXY` > `HTTPS_PROXY`/`https_proxy` env > Windows IE 프록시 레지스트리(`HKCU\...\Internet Settings`의 `ProxyEnable`/`ProxyServer`)**. 그래도 막히면 `MDV_HTTPS_PROXY` 로 직접 지정.
+- 403 `API rate limit exceeded` 가 뜨면 → `MDV_UPDATE_TOKEN` 권장.
+- curl(35) `Recv failure: connection was reset` 가 뜨면 → `MDV_HTTPS_PROXY` 확인 (사내 PC 인데 IE 프록시 설정이 없는 경우 자동 감지가 비어 있음).
 
 > 릴리스가 하나도 없으면(404) 오류가 아니라 "최신"으로 표시됩니다.
 > 사용자는 배너의 **건너뛰기**로 특정 버전 알림을 끌 수 있습니다(설정에서 해제).

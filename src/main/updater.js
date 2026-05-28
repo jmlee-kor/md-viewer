@@ -22,6 +22,62 @@ function detectCurl() {
 }
 const HAS_CURL = detectCurl();
 
+// Windows IE 프록시 자동 감지 — curl 은 Windows 시스템 프록시를 자동으로 안 읽으므로
+// 레지스트리에서 직접 읽어 spawn env(HTTPS_PROXY)로 주입한다. (사내 PC에서 curl(35) 회피)
+function getWindowsIEProxy() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const key = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings';
+    const en = execFileSync('reg', ['query', key, '/v', 'ProxyEnable'], { encoding: 'utf8' });
+    const enMatch = en.match(/ProxyEnable\s+REG_DWORD\s+0x([0-9a-f]+)/i);
+    if (!enMatch || parseInt(enMatch[1], 16) !== 1) return null;
+    const sv = execFileSync('reg', ['query', key, '/v', 'ProxyServer'], { encoding: 'utf8' });
+    const svMatch = sv.match(/ProxyServer\s+REG_SZ\s+(.+)/);
+    if (!svMatch) return null;
+    let p = svMatch[1].trim();
+    // "host:port" 또는 "http=host:port;https=host:port" 양식 모두 대응
+    if (p.includes('=')) {
+      const map = Object.fromEntries(
+        p.split(';').map((s) => { const i = s.indexOf('='); return [s.slice(0, i).trim(), s.slice(i + 1).trim()]; })
+      );
+      p = map.https || map.http || Object.values(map)[0];
+    }
+    if (!p) return null;
+    return p.startsWith('http') ? p : `http://${p}`;
+  } catch { return null; }
+}
+
+/** 우선순위: MDV_HTTPS_PROXY env > mdv.config.json.httpsProxy > 표준 HTTPS_PROXY > Windows IE 프록시 */
+function resolveProxyAndCa() {
+  const cfg = readConfig();
+  const proxy =
+    process.env.MDV_HTTPS_PROXY ||
+    cfg.httpsProxy ||
+    process.env.HTTPS_PROXY || process.env.https_proxy ||
+    getWindowsIEProxy();
+  const ca = process.env.MDV_CA_BUNDLE || cfg.caBundle || null;
+  return { proxy, ca };
+}
+
+/** curl 실행을 위한 env + 추가 args(--cacert) 빌드 */
+function curlEnvAndArgs() {
+  const { proxy, ca } = resolveProxyAndCa();
+  const env = { ...process.env };
+  if (proxy) { env.HTTPS_PROXY = proxy; env.HTTP_PROXY = proxy; }
+  const extraArgs = ca ? ['--cacert', ca] : [];
+  return { env, extraArgs };
+}
+
+/** GitHub API 에러 본문(JSON {message})을 추출해 사용자 친화 메시지로 변환 */
+function formatHttpError(status, body) {
+  let msg = (body || '').trim() || `HTTP ${status}`;
+  try {
+    const j = JSON.parse(body);
+    if (j && j.message) msg = `${j.message} (HTTP ${status})`;
+  } catch { /* JSON 아니면 raw 사용 */ }
+  return msg;
+}
+
 const DEFAULT_REPO = 'jmlee-kor/md-viewer';
 const DEFAULT_INTERVAL_H = 6; // 주기 확인 간격(시간)
 // 패키징 zip 에셋 이름 매칭(Phase 3 dist:release 산출물). Phase 2 다운로드가 이걸로 선택.
@@ -83,15 +139,17 @@ function httpsGetJson(url, headers = {}) {
 function httpsGetJsonCurl(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const SENTINEL = '\n__MDV_HTTP_STATUS__:';
+    const { env, extraArgs } = curlEnvAndArgs();
     const args = [
       '-sSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '60',
+      ...extraArgs,
       '-H', 'User-Agent: md-viewer',
       '-H', 'Accept: application/vnd.github+json',
     ];
     for (const [k, v] of Object.entries(headers)) args.push('-H', `${k}: ${v}`);
     args.push('-w', `${SENTINEL}%{http_code}`, url);
     let out = '', err = '';
-    const child = spawn('curl', args, { windowsHide: true });
+    const child = spawn('curl', args, { windowsHide: true, env });
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
     child.on('error', reject);
@@ -104,7 +162,7 @@ function httpsGetJsonCurl(url, headers = {}) {
       if (status === 200) {
         try { return resolve(JSON.parse(body)); } catch (e) { return reject(e); }
       }
-      const e = new Error(`HTTP ${status}`);
+      const e = new Error(formatHttpError(status, body));
       e.statusCode = status;
       reject(e);
     });
@@ -121,21 +179,16 @@ function httpsGetJsonNode(url, headers = {}) {
           res.resume();
           return resolve(httpsGetJsonNode(res.headers.location, headers));
         }
-        if (res.statusCode !== 200) {
-          res.resume();
-          const err = new Error(`HTTP ${res.statusCode}`);
-          err.statusCode = res.statusCode;
-          return reject(err);
-        }
         let body = '';
         res.setEncoding('utf8');
         res.on('data', (c) => (body += c));
         res.on('end', () => {
-          try {
-            resolve(JSON.parse(body));
-          } catch (e) {
-            reject(e);
+          if (res.statusCode !== 200) {
+            const err = new Error(formatHttpError(res.statusCode, body));
+            err.statusCode = res.statusCode;
+            return reject(err);
           }
+          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
         });
       }
     );
@@ -175,7 +228,14 @@ async function checkForUpdate(currentVersion, transport = httpsGetJson) {
     if (e && e.statusCode === 404) {
       return { available: false, current: currentVersion, latest: null, noRelease: true };
     }
-    return { available: false, current: currentVersion, error: String((e && e.message) || e) };
+    let error = String((e && e.message) || e);
+    // 사용자 친화 힌트 추가
+    if (e && e.statusCode === 403 && /rate limit/i.test(error)) {
+      error += '\n→ MDV_UPDATE_TOKEN 에 GitHub 토큰 설정 시 5000/hr 로 증가 (gh auth token 으로 얻을 수 있음)';
+    } else if (/(ECONNRESET|connection was reset|curl.*\(35\)|TLS)/i.test(error)) {
+      error += '\n→ 사내 프록시·MITM 환경이면 MDV_HTTPS_PROXY / MDV_CA_BUNDLE 설정을 확인하세요';
+    }
+    return { available: false, current: currentVersion, error };
   }
 }
 
@@ -195,8 +255,10 @@ function downloadFile(url, dest, opts = {}) {
 function downloadFileCurl(url, dest, { token, headers = {}, onProgress } = {}) {
   return new Promise((resolve, reject) => {
     fs.rmSync(dest, { force: true });
+    const { env, extraArgs } = curlEnvAndArgs();
     const args = [
       '-fsSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '3600',
+      ...extraArgs,
       '-o', dest,
       '-H', 'User-Agent: md-viewer',
     ];
@@ -204,7 +266,7 @@ function downloadFileCurl(url, dest, { token, headers = {}, onProgress } = {}) {
     if (token) args.push('-H', `Authorization: Bearer ${token}`); // curl 은 redirect 시 자동으로 Auth 떨어뜨림
     args.push(url);
     let err = '';
-    const child = spawn('curl', args, { windowsHide: true });
+    const child = spawn('curl', args, { windowsHide: true, env });
     child.stderr.on('data', (d) => (err += d));
     let timer = null;
     if (onProgress) {

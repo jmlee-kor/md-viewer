@@ -52,18 +52,45 @@ function detectCurl() {
   catch { return false; }
 }
 const HAS_CURL = detectCurl();
+
+// Windows IE 프록시 자동 감지 (사내 PC 에서 curl 이 시스템 IE 프록시를 자동으로
+// 안 읽어 발생하는 curl(35) Recv reset 회피). 우선순위:
+//   MDV_HTTPS_PROXY > HTTPS_PROXY/https_proxy > Windows 레지스트리(IE 프록시)
+function getWindowsIEProxy() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const key = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings';
+    const en = execFileSync('reg', ['query', key, '/v', 'ProxyEnable'], { encoding: 'utf8' });
+    const enMatch = en.match(/ProxyEnable\s+REG_DWORD\s+0x([0-9a-f]+)/i);
+    if (!enMatch || parseInt(enMatch[1], 16) !== 1) return null;
+    const sv = execFileSync('reg', ['query', key, '/v', 'ProxyServer'], { encoding: 'utf8' });
+    const svMatch = sv.match(/ProxyServer\s+REG_SZ\s+(.+)/);
+    if (!svMatch) return null;
+    let p = svMatch[1].trim();
+    if (p.includes('=')) {
+      const map = Object.fromEntries(p.split(';').map((s) => { const i = s.indexOf('='); return [s.slice(0, i).trim(), s.slice(i + 1).trim()]; }));
+      p = map.https || map.http || Object.values(map)[0];
+    }
+    if (!p) return null;
+    return p.startsWith('http') ? p : `http://${p}`;
+  } catch { return null; }
+}
+const PROXY = process.env.MDV_HTTPS_PROXY || process.env.HTTPS_PROXY || process.env.https_proxy || getWindowsIEProxy();
+const CA = process.env.MDV_CA_BUNDLE || null;
+const CURL_ENV = PROXY ? { ...process.env, HTTPS_PROXY: PROXY, HTTP_PROXY: PROXY } : process.env;
+
 console.log(HAS_CURL ? '다운로드: curl (시스템 프록시/인증서 사용)' : '다운로드: Node https (curl 없음)');
+if (PROXY) console.log(`  프록시: ${PROXY}`);
+if (CA) console.log(`  CA 번들: ${CA}`);
 
 function downloadCurl(url, dest) {
   return new Promise((resolve, reject) => {
     const tmp = dest + '.tmp';
     try {
-      // -f 실패시 비0, -s 진행률 숨김, -S 에러 표시, -L 리다이렉트, --retry 3 + --retry-connrefused
-      execFileSync(
-        'curl',
-        ['-fsSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '600', '-o', tmp, url],
-        { stdio: ['ignore', 'inherit', 'inherit'] }
-      );
+      const args = ['-fsSL', '--retry', '3', '--retry-connrefused', '--retry-delay', '2', '--max-time', '600'];
+      if (CA) args.push('--cacert', CA);
+      args.push('-o', tmp, url);
+      execFileSync('curl', args, { stdio: ['ignore', 'inherit', 'inherit'], env: CURL_ENV });
       fs.renameSync(tmp, dest);
       resolve(fs.statSync(dest).size);
     } catch (e) {

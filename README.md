@@ -90,9 +90,12 @@ npm run install:local  # 빌드 + %LOCALAPPDATA%\Programs\md-viewer 설치 + PAT
 새 터미널부터 어디서든 `md-viewer` 로 실행(또는 시작 메뉴). 재빌드 시
 `install:local` 만 반복하면 됨. 설치 footprint 약 460MB.
 
-> **사내 프록시·MITM 인증서 환경 호환**: `fetch-tools` 가 가능하면 `curl` 을
-> 우선 사용해 Windows 시스템 프록시·인증서 저장소를 따라간다. Win10 1803+ 의
-> 내장 `curl` 만 있으면 충분 (`MDV_FETCH_NO_CURL=1` 로 강제 비활성 가능).
+> **사내 프록시·MITM 인증서 환경 호환**: 빌드(`fetch-tools`)와 런타임 자동
+> 업데이트(`updater`) 모두 가능하면 `curl` 을 우선 사용하고, **Windows IE
+> 프록시 설정을 레지스트리에서 자동 감지**해 적용한다. 자동 감지가 안 맞으면
+> `MDV_HTTPS_PROXY`/`MDV_CA_BUNDLE` 로 직접 지정. GitHub API rate limit(미인증
+> 60/hr) 회피용 `MDV_UPDATE_TOKEN` 도 지원(`gh auth token` 으로 얻음). 자세히는
+> [DISTRIBUTION.md](DISTRIBUTION.md).
 
 **자동 업데이트**: 설치본은 시작 직후 + 주기적(기본 6시간)으로 GitHub Releases
 를 확인 → 새 버전이 있으면 상단 배너 → "지금 업데이트" 클릭으로 다운로드 →
