@@ -33,6 +33,22 @@ function Remove-WithRetry($path, $tries = 8, $delayMs = 500) {
   return (-not (Test-Path $path))
 }
 
+# 폴더 이동 재시도: 안티바이러스가 추출 직후·종료 직후 파일들을 스캔하면서
+# 일시적으로 핸들을 잡아 Move-Item 이 실패하는 케이스 대응 (20×750ms = 15s 윈도우).
+function Move-WithRetry($from, $to, $tries = 20, $delayMs = 750) {
+  for ($i = 0; $i -lt $tries; $i++) {
+    try {
+      Move-Item -Path $from -Destination $to -Force -ErrorAction Stop
+      if ($i -gt 0) { Log "move 성공: 시도 $($i+1)/$tries" }
+      return $true
+    } catch {
+      if ($i -eq $tries - 1) { throw }
+      Log "move 재시도 $($i+1)/$tries (AV 스캔/파일 잠금?): $_"
+      Start-Sleep -Milliseconds $delayMs
+    }
+  }
+}
+
 $backup = "$Install._bak"
 
 try {
@@ -45,21 +61,21 @@ try {
   # 잔여 동일 이름 프로세스(렌더러/GPU 등)도 정리 — 보통 main 종료 시 같이 죽지만 안전.
   $name = $Exe -replace '\.exe$',''
   Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 800   # 파일 핸들 해제 여유
+  Start-Sleep -Milliseconds 1500  # 파일 핸들 해제 + AV 초기 스캔 settling
 
   # 2) 스테이징 루트 확인 (.exe 가 직접 들어있어야 함)
   if (-not (Test-Path (Join-Path $Staged $Exe))) {
     throw "staged 루트에 $Exe 없음: $Staged"
   }
 
-  # 3) 기존 설치 백업 (같은 볼륨이면 Move 는 즉시)
+  # 3) 기존 설치 백업 (같은 볼륨이면 Move 는 즉시, AV 잠금 시 재시도)
   if (Test-Path $backup) {
     if (-not (Remove-WithRetry $backup)) { throw "이전 백업 제거 실패: $backup" }
   }
-  if (Test-Path $Install) { Move-Item -Path $Install -Destination $backup -Force }
+  if (Test-Path $Install) { Move-WithRetry $Install $backup }
 
-  # 4) 스테이징 → 설치 위치로 이동(스왑)
-  Move-Item -Path $Staged -Destination $Install -Force
+  # 4) 스테이징 → 설치 위치로 이동(스왑, AV 잠금 시 재시도)
+  Move-WithRetry $Staged $Install
 
   # 5) 검증: 핵심 산출물 존재 (install-local 의 app.asar 검증 교훈)
   if (-not (Test-Path (Join-Path $Install 'resources\app.asar'))) {
