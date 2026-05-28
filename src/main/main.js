@@ -492,9 +492,14 @@ ipcMain.handle('update:apply', async (_e, info) => {
     if (!stagedRoot) throw new Error(`추출물에서 ${exe} 를 찾지 못함`);
 
     // 3) 분리 헬퍼 실행 (앱 종료 후 스왑) → 앱 종료
-    const helper = app.isPackaged
+    // ⚠ install/resources/apply-update.ps1 을 직접 실행하면 robocopy 가 그 파일을 덮을 때
+    // powershell 의 핸들에 막힐 수 있다. work 폴더로 복사해 거기서 실행하면 install
+    // 디렉토리 전체를 자유롭게 교체할 수 있다.
+    const helperSrc = app.isPackaged
       ? path.join(process.resourcesPath, 'apply-update.ps1')
       : path.join(__dirname, '..', '..', 'scripts', 'apply-update.ps1');
+    const helper = path.join(work, 'apply-update.ps1');
+    fs.copyFileSync(helperSrc, helper);
     send({ phase: 'swap' });
 
     // 단순 detached spawn 으로는 Electron 의 Job Object(kill-on-close)가 앱 종료 시

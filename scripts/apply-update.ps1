@@ -33,20 +33,21 @@ function Remove-WithRetry($path, $tries = 8, $delayMs = 500) {
   return (-not (Test-Path $path))
 }
 
-# 폴더 이동 재시도: 안티바이러스가 추출 직후·종료 직후 파일들을 스캔하면서
-# 일시적으로 핸들을 잡아 Move-Item 이 실패하는 케이스 대응 (20×750ms = 15s 윈도우).
-function Move-WithRetry($from, $to, $tries = 20, $delayMs = 750) {
-  for ($i = 0; $i -lt $tries; $i++) {
-    try {
-      Move-Item -Path $from -Destination $to -Force -ErrorAction Stop
-      if ($i -gt 0) { Log "move 성공: 시도 $($i+1)/$tries" }
-      return $true
-    } catch {
-      if ($i -eq $tries - 1) { throw }
-      Log "move 재시도 $($i+1)/$tries (AV 스캔/파일 잠금?): $_"
-      Start-Sleep -Milliseconds $delayMs
-    }
-  }
+# robocopy 로 폴더 이동/복사: 파일 단위 재시도(/R:30 /W:1 = 파일당 최대 30s)로
+# 안티바이러스가 추출/종료 직후 스캔하며 일부 파일을 잡아도 전체가 실패하지 않는다.
+# Move-Item 은 폴더 단위라 한 파일만 잡혀도 전체 실패 → robocopy 가 본질적으로 더 강인.
+function Robocopy-Tree($from, $to, $label, [switch]$Move) {
+  $rcArgs = @($from, $to, '/E')
+  if ($Move) { $rcArgs += '/MOVE' }
+  # /R:30 /W:1 = 파일당 30회×1s 재시도(AV 잠금 대응), /MT:1 = 단일 스레드(AV 경합 회피)
+  # /NP /NFL /NDL /NJH /NJS = 출력 최소화
+  $rcArgs += '/R:30','/W:1','/MT:1','/NP','/NFL','/NDL','/NJH','/NJS'
+  # & 네이티브 호출 (Start-Process 는 ArgumentList 파싱이 불안정해 args 가 누락된 사례 실측)
+  & robocopy @rcArgs | Out-Null
+  $rc = $LASTEXITCODE
+  # robocopy exit: 0-7 = 성공(복사/추가/누락 등 단계 차이), 8+ = 실패
+  if ($rc -gt 7) { throw "robocopy 실패 [$label] (exit $rc) $from -> $to" }
+  Log "$label : robocopy OK (exit $rc) - $from -> $to"
 }
 
 $backup = "$Install._bak"
@@ -68,14 +69,16 @@ try {
     throw "staged 루트에 $Exe 없음: $Staged"
   }
 
-  # 3) 기존 설치 백업 (같은 볼륨이면 Move 는 즉시, AV 잠금 시 재시도)
+  # 3) 기존 설치 백업: install -> .bak (robocopy /MOVE, 파일 단위 AV 재시도)
   if (Test-Path $backup) {
     if (-not (Remove-WithRetry $backup)) { throw "이전 백업 제거 실패: $backup" }
   }
-  if (Test-Path $Install) { Move-WithRetry $Install $backup }
+  if (Test-Path $Install) { Robocopy-Tree $Install $backup '백업' -Move }
+  if (Test-Path $Install) { Remove-WithRetry $Install | Out-Null } # 빈 source root 잔존 정리
 
-  # 4) 스테이징 → 설치 위치로 이동(스왑, AV 잠금 시 재시도)
-  Move-WithRetry $Staged $Install
+  # 4) staged -> install (robocopy /MOVE, 파일 단위 AV 재시도)
+  Robocopy-Tree $Staged $Install '스왑' -Move
+  if (Test-Path $Staged) { Remove-WithRetry $Staged | Out-Null }
 
   # 5) 검증: 핵심 산출물 존재 (install-local 의 app.asar 검증 교훈)
   if (-not (Test-Path (Join-Path $Install 'resources\app.asar'))) {
@@ -95,11 +98,11 @@ try {
 }
 catch {
   Log "FAIL: $_"
-  # 롤백: 새 Install 이 불완전하면 제거하고 백업 복원
+  # 롤백: 새 Install 이 partial 일 수 있음 → 제거 후 robocopy 로 .bak 복원(파일 단위 재시도)
   try {
     if (Test-Path $backup) {
-      if (Test-Path $Install) { Remove-Item -Recurse -Force $Install -ErrorAction SilentlyContinue }
-      Move-Item -Path $backup -Destination $Install -Force
+      if (Test-Path $Install) { Remove-WithRetry $Install | Out-Null }
+      Robocopy-Tree $backup $Install '롤백' -Move
       Log "rolled back to backup"
     }
     # 어느 쪽이든 기존(복원된) 앱은 재실행 시도
