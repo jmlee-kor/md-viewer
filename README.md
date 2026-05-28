@@ -74,21 +74,44 @@
 - 네트워크 조회는 main 프로세스에서만 → 렌더러 CSP·오프라인 보안 모델 무훼손, 런타임 의존 0
 - 소스/주기/토큰 재정의: `MDV_UPDATE_*` 또는 `mdv.config.json`. 발행 절차는 [DISTRIBUTION.md](DISTRIBUTION.md)
 
-## 개발 (인터넷 되는 PC)
+## 설치 (Windows)
+
+**권장 — 로컬 설치 (인터넷 되는 PC)**: 한 줄로 빌드+설치까지 끝. Electron 과
+PlantUML 도구(슬림 Java 런타임 + Graphviz + jar)가 **자동 번들**되어 설정
+없이 모든 기능이 동작하고, GitHub Releases 기반 **자동 업데이트**도 활성화.
+
+```bash
+git clone https://github.com/jmlee-kor/md-viewer.git
+cd md-viewer
+npm install            # dev 의존성 (최초 1회)
+npm run install:local  # 빌드 + %LOCALAPPDATA%\Programs\md-viewer 설치 + PATH/시작메뉴 등록
+```
+
+새 터미널부터 어디서든 `md-viewer` 로 실행(또는 시작 메뉴). 재빌드 시
+`install:local` 만 반복하면 됨. 설치 footprint 약 460MB.
+
+> **사내 프록시·MITM 인증서 환경 호환**: `fetch-tools` 가 가능하면 `curl` 을
+> 우선 사용해 Windows 시스템 프록시·인증서 저장소를 따라간다. Win10 1803+ 의
+> 내장 `curl` 만 있으면 충분 (`MDV_FETCH_NO_CURL=1` 로 강제 비활성 가능).
+
+**자동 업데이트**: 설치본은 시작 직후 + 주기적(기본 6시간)으로 GitHub Releases
+를 확인 → 새 버전이 있으면 상단 배너 → "지금 업데이트" 클릭으로 다운로드 →
+종료 후 분리 헬퍼가 교체 → 자동 재시작 (실패 시 롤백). 자세한 동작·설정 재정의
+(`MDV_UPDATE_*`)는 [DISTRIBUTION.md](DISTRIBUTION.md#메인테이너-자동-업데이트-릴리스-발행-github-releases)
+참조.
+
+**폐쇄망(외부 인터넷 차단)**: `git pull` + Electron prebuilt 반입 + (필요 시)
+`tools/` 에 JRE/jar 수동 반입 후 `run.cmd`. 자동 업데이트는 비활성. 상세 절차는
+[DISTRIBUTION.md](DISTRIBUTION.md) 참조.
+
+## 개발
 
 ```bash
 npm install        # dev 의존성
-npm run vendor     # vendor/ 생성 (다운로드 + 번들)
-npm start          # 앱 실행
+npm run vendor     # vendor/ 생성 (라이브러리 변경 시: 다운로드 + 번들)
+npm start          # 앱 실행 (dev)
 npm test           # 단위 + 스모크 테스트
 ```
-
-## 폐쇄망 배포
-
-요약: 외부 PC에서 `npm run vendor` → 커밋/푸시. 폐쇄망에서 `git pull` +
-Electron prebuilt 반입 후 `run.cmd`. PlantUML 은 `tools/` 에 JRE/jar 반입.
-
-상세 절차는 **[DISTRIBUTION.md](DISTRIBUTION.md)** 참조.
 
 ## 구조
 
