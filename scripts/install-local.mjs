@@ -24,15 +24,36 @@ if (process.platform === 'win32') {
   try {
     execFileSync('taskkill', ['/IM', 'md-viewer.exe', '/F'], { stdio: 'pipe' });
     console.log('실행 중이던 md-viewer 종료(파일 잠금 해제)');
-    // 종료 후 핸들 해제까지 약간의 여유
-    execFileSync('powershell', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 600']);
+    // 종료 후 핸들 해제 + AV 초기 스캔 settling
+    execFileSync('powershell', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 1500']);
   } catch {
     /* 실행 중이 아니면 taskkill 가 비0 종료 — 무시 */
   }
 }
 
-fs.rmSync(dest, { recursive: true, force: true });
-fs.cpSync(src, dest, { recursive: true });
+// rmSync + cpSync 대신 robocopy /MIR — 파일 단위 재시도(/R:30 /W:1)로 AV 스캔 잠금
+// 회피. exit 0~7 = 성공, 8+ = 실패 (헬퍼와 동일 패턴).
+if (process.platform === 'win32') {
+  fs.mkdirSync(dest, { recursive: true });
+  let rc = 0;
+  try {
+    execFileSync(
+      'robocopy',
+      [src, dest, '/MIR', '/R:30', '/W:1', '/MT:1', '/NP', '/NFL', '/NDL', '/NJH', '/NJS'],
+      { stdio: 'inherit' }
+    );
+  } catch (e) {
+    rc = (e && typeof e.status === 'number') ? e.status : 16;
+  }
+  if (rc > 7) {
+    console.error(`robocopy 실패 (exit ${rc}) — AV 가 너무 적극적이면 일시 OFF 후 재시도`);
+    process.exit(1);
+  }
+} else {
+  // 비-Windows (드물지만 안전망)
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.cpSync(src, dest, { recursive: true });
+}
 
 // 복사 검증: 핵심 산출물(app.asar)이 src 와 동일 크기인지 확인. 불일치면 실패로 종료.
 const relCheck = path.join('resources', 'app.asar');
